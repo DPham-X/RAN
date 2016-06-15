@@ -102,7 +102,6 @@ class RAN(app_manager.RyuApp):
                                 table_id=table_id)
         datapath.send_msg(mod)
 
-
     def diffuse_parser(self):
         """Parses FCN/CN RAP Protocol messages"""
         host = ''
