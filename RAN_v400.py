@@ -35,6 +35,7 @@ import struct
 import time
 import copy
 
+print("Hello")
 
 class RAN(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION,
