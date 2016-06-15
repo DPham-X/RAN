@@ -12,6 +12,14 @@
 # implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import binascii
+import socket
+import struct
+import copy
+try:
+    import configparser as ConfigParser
+except ImportError:
+    import ConfigParser
 from ryu.base import app_manager
 from ryu.controller import ofp_event
 from ryu.controller.handler import CONFIG_DISPATCHER, MAIN_DISPATCHER
@@ -28,16 +36,10 @@ from src.packet_process import join
 from src.packet_process import msg_check
 from src.packet_process import template_check
 from src.ver_check import version_check
-import binascii
-import ConfigParser
-import socket
-import struct
-import time
-import copy
 
-print("Hello")
 
 class RAN(app_manager.RyuApp):
+    """Ryu Action Node v400"""
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION,
                     ofproto_v1_4.OFP_VERSION,
                     ofproto_v1_5.OFP_VERSION]
@@ -56,6 +58,7 @@ class RAN(app_manager.RyuApp):
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
+        """Handles connection between RYU and SDN Switches"""
         msg = ev.msg
         datapath = msg.datapath
         # self.ver = version_check(max(datapath.supported_ofp_version))
@@ -85,7 +88,7 @@ class RAN(app_manager.RyuApp):
 
     @staticmethod
     def add_flow_miss(datapath, priority, table_id):
-        # Add controller flows miss (v13, v14, v15)
+        """Add controller flows miss (v13, v14, v15)"""
         # Table 0 Miss flows will continue on to Table 1 and any flows created by
         # the RAN will be on Table 0
         parser = datapath.ofproto_parser
@@ -94,14 +97,14 @@ class RAN(app_manager.RyuApp):
             parser.OFPInstructionGotoTable(
                 table_id +
                 1)]  # Go to next table
-
         mod = parser.OFPFlowMod(datapath=datapath, priority=priority,
                                 match=match, instructions=inst,
                                 table_id=table_id)
         datapath.send_msg(mod)
 
-    # Diffuse Parser
+
     def diffuse_parser(self):
+        """Parses FCN/CN RAP Protocol messages"""
         host = ''
         port = 5000
 
@@ -190,15 +193,20 @@ class RAN(app_manager.RyuApp):
 
                             # Idle & Hard Timeout
                             timeout = int(r_msg['TIMEOUT'], 16)
-                            ACT = None
+                            action = None
 
                             # conf.ini values
-                            self.queue, self.type_, self.meter_id, self.rate, self.dscp_no = self.conf_get(
-                                class_name)
+                            config = self.conf_get(class_name)
+
+                            self.queue = config.queue
+                            self.type = config.type_
+                            self.meter_id = config.meter_id
+                            self.rate = config.rate
+                            self.dscp_no = config.dscp_no
+
                             if self.queue is not None:
-                                _QUEUE = parser.OFPActionSetQueue(
-                                    int(self.queue))
-                                action = [_QUEUE]
+                                action = [parser.OFPActionSetQueue(
+                                    int(self.queue))]
 
                             if action is not None:
                                 inst = [
@@ -249,9 +257,8 @@ class RAN(app_manager.RyuApp):
                                 "%s All flow deletion sent", str(
                                     datetime.now()))
 
-    # Bind & Create Sockets
     def socket_tcp(self, host, port):
-
+        """Bind & Create Sockets"""
         _sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.logger.debug('%s Socket created', str(datetime.now()))
 
@@ -278,8 +285,8 @@ class RAN(app_manager.RyuApp):
 
         return _sock
 
-    # Receive Message
     def socket_receive(self, sock):
+        """Receive Message"""
         buffer_size = 1024
         conn, addr = sock.accept()
         while True:
@@ -290,8 +297,8 @@ class RAN(app_manager.RyuApp):
             conn.close()
             return msg
 
-    # Decode Message
     def packet_parse(self, data):
+        """Decode Message"""
         self.offset = 0
         template = []
         msg = {}
@@ -353,6 +360,7 @@ class RAN(app_manager.RyuApp):
         self.offset += uint16
 
         def msg_parser(msg_name):
+            """Packet Decoder"""
             c_tag = 0
             if msg_name == 'CLASS_TAG':
                 c_tag = int(split_msg[self.offset], 16)
@@ -407,10 +415,9 @@ class RAN(app_manager.RyuApp):
                 msg_counter += 1
         return lst, msg_counter
 
-    # Add Flow
     def create_flow(self, datapath, timeout, priority, match, inst):
+        """Add FCN/CN Flows in table"""
         parser = datapath.ofproto_parser
-        ofp = datapath.ofproto
 
         match = parser.OFPMatch()
         setattr(match, '_fields2', self.load)
@@ -425,7 +432,7 @@ class RAN(app_manager.RyuApp):
                 instructions=inst,
                 table_id=0)
             datapath.send_msg(mod)
-        except (RuntimeError):
+        except RuntimeError:
             self.logger.debug(
                 "%s Could not send flow to switch \'%d\'", str(
                     datetime.now()), datapath.id)
@@ -468,9 +475,8 @@ class RAN(app_manager.RyuApp):
                     datetime.now()), datapath.id)
 
 # Section off conf file
-
-    # Read conf.ini
     def import_conf(self):
+        """Read conf.ini"""
         self.config = ConfigParser.ConfigParser()
         print('Input location of configuration file:')
 
@@ -518,10 +524,16 @@ class RAN(app_manager.RyuApp):
             rate = csm.get('rate')
             dscp_no = csm.get('dscp')
 
-        return queue, type_, meter_id, rate, dscp_no
+        config = ()
 
-    # Meter ID Request
+        return config(queue=queue,
+                      type=type_,
+                      meter_id=meter_id,
+                      rate=rate,
+                      dscp_no=dscp_no)
+
     def meter_req(self, datapath):
+        """Query Meter Stats Request when Packet Decoder has compeleted."""
         parser = datapath.ofproto_parser
         ofproto = datapath.ofproto
         req = parser.OFPMeterStatsRequest(datapath=datapath,
@@ -532,10 +544,9 @@ class RAN(app_manager.RyuApp):
             "%s MeterStatsRequest sent to switch \'%s\', waiting for reply...", str(
                 datetime.now()), datapath.id)
 
-    # Send flows for metered type
-
     @set_ev_cls(ofp_event.EventOFPMeterStatsReply, MAIN_DISPATCHER)
     def meter_stats_reply_handler(self, ev):
+        """Decode meters stats replies"""
         # TODO: Meter for OF1.5
         # Potential problem: Variables stored waiting for the meter stats reply
         # If new meter mod comes then old meter variables will be deleted before
@@ -591,8 +602,8 @@ class RAN(app_manager.RyuApp):
 
             self.add_flow_meter_13(datapath)
 
-    # Meter Add flow
     def add_flow_meter_13(self, datapath):
+        """Add flow when meter exists"""
         parser = datapath.ofproto_parser
         ofproto = datapath.ofproto
 
