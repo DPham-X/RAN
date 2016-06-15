@@ -1,3 +1,4 @@
+"""RAN_v400"""
 # Copyright (C) 2011 Nippon Telegraph and Telephone Corporation.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -108,11 +109,11 @@ class RAN(app_manager.RyuApp):
         host = ''
         port = 5000
 
-        s = self.socket_tcp(host=host, port=port)
+        sock = self.socket_tcp(host=host, port=port)
 
         while True:
             # Receive Messages
-            received_msg, msg_count = self.socket_receive(sock=s)
+            received_msg, msg_count = self.socket_receive(sock=sock)
             self.logger.debug("%s Flow received", str(datetime.now()))
             for d_n, datapath_key in enumerate(self.datapaths):
                 for msg_no in range(0, msg_count + 1, 1):
@@ -302,7 +303,7 @@ class RAN(app_manager.RyuApp):
         self.offset = 0
         template = []
         msg = {}
-        _MSG_ID_CHECK = True
+        message_check = True
         lst = []
         msg_counter = 0
         uint64 = 8
@@ -316,6 +317,7 @@ class RAN(app_manager.RyuApp):
 
         # Header data
         class Header:
+            """Initialise header"""
             ver = join(msg=split_msg, offset=self.offset, hex=8),
             self.offset += check_header_offset('ver')
             m_len = join(msg=split_msg, offset=self.offset, hex=uint16),
@@ -386,12 +388,12 @@ class RAN(app_manager.RyuApp):
                 'ACT_PAR': join(msg=split_msg, offset=self.offset, hex=16),
             }.get(msg_name)
 
-        while _MSG_ID_CHECK:
+        while message_check:
             if msg_id == 256:
-                for i, ID in enumerate(template):
-                    msg[template[i]] = msg_parser(ID)
+                for i, template_id in enumerate(template):
+                    msg[template[i]] = msg_parser(template_id)
                     # print msg
-                    if not ID == 'CLASS_TAG':
+                    if not template_id == 'CLASS_TAG':
                         self.offset += msg_check(template[i], template)
                     else:
                         class_len = int(msg['CLASS_TAG'][0], 16)
@@ -405,9 +407,9 @@ class RAN(app_manager.RyuApp):
                             offset=self.offset,
                             hex=uint16),
                         16) == 256:
-                    _MSG_ID_CHECK = True
+                    message_check = True
                 else:
-                    _MSG_ID_CHECK = False
+                    message_check = False
             except ValueError:
                 break
             else:
@@ -492,8 +494,8 @@ class RAN(app_manager.RyuApp):
         class_name = self.config.sections()
         return class_name
 
-    # Section out conf.ini
     def config_section_map(self, section):
+        """Split conf.ini into sections"""
         csm_d = {}
         options = self.config.options(section)
         for option in options:
@@ -507,8 +509,8 @@ class RAN(app_manager.RyuApp):
                 csm_d[option] = None
         return csm_d
 
-    # Parser for conf.ini
     def conf_get(self, class_in):
+        """Check incoming RAP messages against conf.ini"""
         if class_in in self.class_name:
             csm = self.config_section_map(class_in)
             queue = csm.get('queue')  # queue number
