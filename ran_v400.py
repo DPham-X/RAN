@@ -30,13 +30,13 @@ from ryu.ofproto import ofproto_v1_3
 from ryu.ofproto import ofproto_v1_4
 from ryu.ofproto import ofproto_v1_5
 from datetime import datetime
-from src.diffuse_parse import ipv4_to_int
-from src.diffuse_parse import proto_check
-from src.packet_process import check_header_offset
-from src.packet_process import join
-from src.packet_process import msg_check
-from src.packet_process import template_check
-from src.ver_check import version_check
+from diffuse_parse import ipv4_to_int
+from diffuse_parse import proto_check
+from packet_process import check_header_offset
+from packet_process import join
+from packet_process import msg_check
+from packet_process import template_check
+from ver_check import version_check
 
 
 class RAN(app_manager.RyuApp):
@@ -197,12 +197,12 @@ class RAN(app_manager.RyuApp):
 
                             # conf.ini values
                             config = self.conf_get(class_name)
-
-                            self.queue = config.queue
-                            self.type = config.type_
-                            self.meter_id = config.meter_id
-                            self.rate = config.rate
-                            self.dscp_no = config.dscp_no
+                            print(config)
+                            self.queue = config['queue']
+                            self.type_ = config['type']
+                            self.meter_id = config['meter_id']
+                            self.rate = config['rate']
+                            self.dscp_no = config['dscp_no']
 
                             if self.queue is not None:
                                 action = [parser.OFPActionSetQueue(
@@ -441,11 +441,11 @@ class RAN(app_manager.RyuApp):
                 "%s Flow Creation sent to switch \'%d\'", str(
                     datetime.now()), datapath.id)
 
-
 # Delete flow
 
-    # Delete Flow
     def del_flow(self, datapath, match):
+        """Removes single/all flows from table
+        not including the controller"""
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
         try:
@@ -524,13 +524,11 @@ class RAN(app_manager.RyuApp):
             rate = csm.get('rate')
             dscp_no = csm.get('dscp')
 
-        config = ()
-
-        return config(queue=queue,
-                      type=type_,
-                      meter_id=meter_id,
-                      rate=rate,
-                      dscp_no=dscp_no)
+        return dict(queue=queue,
+                    type=type_,
+                    meter_id=meter_id,
+                    rate=rate,
+                    dscp_no=dscp_no)
 
     def meter_req(self, datapath):
         """Query Meter Stats Request when Packet Decoder has compeleted."""
