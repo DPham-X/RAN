@@ -111,10 +111,11 @@ class RAN(app_manager.RyuApp):
 
         sock = self.socket_tcp(host=host, port=port)
 
+        self.logger.info("%s RAN initiated", str(datetime.now()))
         while True:
             # Receive Messages
             received_msg, msg_count = self.socket_receive(sock=sock)
-            self.logger.debug("%s Flow received", str(datetime.now()))
+            self.logger.info("%s Flow received", str(datetime.now()))
             for d_n, datapath_key in enumerate(self.datapaths):
                 for msg_no in range(0, msg_count + 1, 1):
                     r_msg = received_msg[msg_no]
@@ -198,8 +199,10 @@ class RAN(app_manager.RyuApp):
 
                             # conf.ini values
                             config = self.conf_get(class_name)
-                            print(config)
-                            self.queue = config['queue']
+                            if config['queue'] is not None:
+                                self.queue = config['queue']
+                            else:
+                                self.queue = 0
                             self.type_ = config['type']
                             self.meter_id = config['meter_id']
                             self.rate = config['rate']
@@ -226,7 +229,7 @@ class RAN(app_manager.RyuApp):
                                 self.meter_req(datapath)
                                 time.sleep(1)
                             else:
-                                self.logger.debug(
+                                self.logger.info(
                                     "%s Sending Flow", str(
                                         datetime.now()))
                                 self.create_flow(
@@ -235,11 +238,11 @@ class RAN(app_manager.RyuApp):
 
                         # Delete IP Flow if Msg Type=1
                         elif int(r_msg['MSG_TYPE'], 16) == 1:
-                            self.logger.debug(
+                            self.logger.info(
                                 "%s Sending Flow", str(
                                     datetime.now()))
                             self.del_flow(datapath, match)
-                            self.logger.debug(
+                            self.logger.info(
                                 "%s Flow deletion sent", str(
                                     datetime.now()))
 
@@ -250,18 +253,18 @@ class RAN(app_manager.RyuApp):
                             load = []
                             load.extend([('eth_type', 0x0800)])
                             setattr(match, '_fields2', load)
-                            self.logger.debug(
+                            self.logger.info(
                                 "%s Sending Flow", str(
                                     datetime.now()))
                             self.del_flow(datapath, match)
-                            self.logger.debug(
+                            self.logger.info(
                                 "%s All flow deletion sent", str(
                                     datetime.now()))
 
     def socket_tcp(self, host, port):
         """Bind & Create Sockets"""
         _sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.logger.debug('%s Socket created', str(datetime.now()))
+        self.logger.info('%s Socket created', str(datetime.now()))
 
         try:
             _sock.bind((host, port))
@@ -271,7 +274,7 @@ class RAN(app_manager.RyuApp):
                 '%s Socket in TIME-WAIT state, wait until socket is closed', str(datetime.now()))
             exit(1)
         else:
-            self.logger.debug('%s Binding successful', str(datetime.now()))
+            self.logger.info('%s Binding successful', str(datetime.now()))
 
         try:
             _sock.listen(1)
@@ -280,7 +283,7 @@ class RAN(app_manager.RyuApp):
                 '%s Cannot listen on port %d', str(
                     datetime.now()), port)
         else:
-            self.logger.debug(
+            self.logger.info(
                 '%s Socket now listening on port %d', str(
                     datetime.now()), port)
 
@@ -423,7 +426,6 @@ class RAN(app_manager.RyuApp):
 
         match = parser.OFPMatch()
         setattr(match, '_fields2', self.load)
-        print(match)
         try:
             mod = parser.OFPFlowMod(
                 datapath=datapath,
@@ -439,7 +441,7 @@ class RAN(app_manager.RyuApp):
                 "%s Could not send flow to switch \'%d\'", str(
                     datetime.now()), datapath.id)
         else:
-            self.logger.debug(
+            self.logger.info(
                 "%s Flow Creation sent to switch \'%d\'", str(
                     datetime.now()), datapath.id)
 
@@ -472,11 +474,12 @@ class RAN(app_manager.RyuApp):
                 "%s Could not send flow deletion to switch \'%d\'", str(
                     datetime.now()), datapath.id)
         else:
-            self.logger.debug(
+            self.logger.info(
                 "%s Flow deletion sent to switch \'%d\'", str(
                     datetime.now()), datapath.id)
 
 # Section off conf file
+
     def import_conf(self):
         """Read conf.ini"""
         self.config = ConfigParser.ConfigParser()
@@ -534,73 +537,44 @@ class RAN(app_manager.RyuApp):
 
     def meter_req(self, datapath):
         """Query Meter Stats Request when Packet Decoder has compeleted."""
-        parser = datapath.ofproto_parser
-        ofproto = datapath.ofproto
-        req = parser.OFPMeterStatsRequest(datapath=datapath,
-                                          flags=0,
-                                          meter_id=ofproto.OFPM_ALL)
-        datapath.send_msg(req)
-        self.logger.debug(
-            "%s MeterStatsRequest sent to switch \'%s\', waiting for reply...", str(
-                datetime.now()), datapath.id)
-
-    @set_ev_cls(ofp_event.EventOFPMeterStatsReply, MAIN_DISPATCHER)
-    def meter_stats_reply_handler(self, ev):
-        """Decode meters stats replies"""
-        # TODO: Meter for OF1.5
-        # Potential problem: Variables stored waiting for the meter stats reply
-        # If new meter mod comes then old meter variables will be deleted before
-        # it is send by the reply handler.
-        datapath = ev.msg.datapath
+        # Get Var
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
-
-        self.logger.debug(
-            "%s MeterStatsReply received for switch \'%s\'", str(
-                datetime.now()), datapath.id)
 
         meter_id = self.meter_id
         type_ = self.type_
         rate = self.rate
         dscp_no = self.dscp_no
-        meters = []
-        # print(meter_id)
         ver = version_check(datapath.ofproto.OFP_VERSION)
 
         if ver in ['OF13', 'OF14']:
-            for stat in ev.msg.body:
-                meters.append(stat.meter_id)
-            if self.meter_id is not None:
-                if int(self.meter_id) not in meters:
-                    if type_ == 'drop':
-                        bands = [
-                            parser.OFPMeterBandDrop(
-                                rate=int(rate),
-                                burst_size=0)]
-                        meter_mod = parser.OFPMeterMod(
-                            datapath, ofproto.OFPMC_ADD, ofproto.OFPMF_KBPS, int(meter_id), bands)
-                        self.logger.debug(
-                            "%s Sending MeterMod: Type = DROP", str(
-                                datetime.now()))
-                        datapath.send_msg(meter_mod)
-                    elif type_ == 'dscp':
-                        bands = [
-                            parser.OFPMeterBandDscpRemark(
-                                rate=int(rate),
-                                burst_size=0,
-                                prec_level=int(dscp_no))]
-                        meter_mod = parser.OFPMeterMod(
-                            datapath, ofproto.OFPMC_ADD, ofproto.OFPMF_KBPS, int(meter_id), bands)
-                        self.logger.debug(
-                            "%s Sending MeterMod: Type = DSCP", str(
-                                datetime.now()))
-                        datapath.send_msg(meter_mod)
-                else:
-                    self.logger.debug(
-                        "%s Existing Meter ID detected, Old meter will be used", str(
-                            datetime.now()))
-
-            self.add_flow_meter_13(datapath)
+            # If DROP make drop
+            if type_ == 'drop':
+                bands = [
+                    parser.OFPMeterBandDrop(
+                        rate=int(rate),
+                        burst_size=0)]
+                meter_mod = parser.OFPMeterMod(
+                    datapath, ofproto.OFPMC_ADD, ofproto.OFPMF_KBPS, int(meter_id), bands)
+                self.logger.info(
+                    "%s Sending MeterMod: Type = DROP", str(
+                        datetime.now()))
+            # if DSCP make DSCP
+            elif type_ == 'dscp':
+                bands = [
+                    parser.OFPMeterBandDscpRemark(
+                        rate=int(rate),
+                        burst_size=0,
+                        prec_level=int(dscp_no))]
+                meter_mod = parser.OFPMeterMod(
+                    datapath, ofproto.OFPMC_ADD, ofproto.OFPMF_KBPS, int(meter_id), bands)
+                self.logger.info(
+                    "%s Sending MeterMod: Type = DSCP", str(
+                        datetime.now()))
+            if meter_mod is not None:
+                datapath.send_msg(meter_mod)
+        # Send flow
+        self.add_flow_meter_13(datapath)
 
     def add_flow_meter_13(self, datapath):
         """Add flow when meter exists"""
@@ -619,10 +593,17 @@ class RAN(app_manager.RyuApp):
                 ofproto.OFPIT_APPLY_ACTIONS,
                 action)]
         inst.insert(0, parser.OFPInstructionMeter(int(meter_id)))
-        self.logger.debug("%s Sending Flow", str(datetime.now()))
+        self.logger.info("%s Sending Flow", str(datetime.now()))
         self.create_flow(
             datapath=datapath,
             timeout=timeout,
             priority=priority,
             match=match,
             inst=inst)
+
+    @set_ev_cls(ofp_event.EventOFPErrorMsg, MAIN_DISPATCHER)
+    def meter_error_handler(self, ev):
+        if ev.msg.type == 12:
+            self.logger.info("%s Meter already exists, existing meter will be used", str(datetime.now()))
+
+
