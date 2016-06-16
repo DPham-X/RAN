@@ -48,11 +48,18 @@ class RAN(app_manager.RyuApp):
     meters = []
     meter_id = None
     MeterModType = 0
+    queue = 0
+    type_ = 0
+    rate = 0
+    dscp_no = 0
+    priority = None
+    timeout = None
+    inst = None
 
     def __init__(self, *args, **kwargs):
         super(RAN, self).__init__(*args, **kwargs)
 
-        self.max_ver = {}
+        self.ofp_ver = {}
         self.datapaths = {}
         self.offset = 0
         self.class_name = self.import_conf()
@@ -63,12 +70,11 @@ class RAN(app_manager.RyuApp):
         """Handles connection between RYU and SDN Switches"""
         msg = ev.msg
         datapath = msg.datapath
-        # self.ver = version_check(max(datapath.supported_ofp_version))
-        self.max_ver = version_check(datapath.ofproto.OFP_VERSION)
+        self.ofp_ver = version_check(datapath.ofproto.OFP_VERSION)
         self.logger.debug(
             '- Highest OF Version Supported on Switch ID:\'%s\': %s',
             datapath.id,
-            self.max_ver)
+            self.ofp_ver)
 
         if datapath.id not in self.datapaths:
             self.datapaths[datapath.id] = datapath
@@ -78,13 +84,13 @@ class RAN(app_manager.RyuApp):
         table_id = 0  # RAN always in lowest table
         priority = 0  # Miss flows are the last to match
 
-        if self.max_ver in ('OF15', 'OF14', 'OF13'):
+        if self.ofp_ver in ('OF15', 'OF14', 'OF13'):
             self.add_flow_miss(
                 datapath=datapath,
                 priority=priority,
                 table_id=table_id)
         else:
-            self.logger.debug('Error: Unsupported Version')
+            self.logger.debug('Error: %s Unsupported Version', self.ofp_ver)
 
         self.logger.debug('Datapath \'%s\'', self.datapaths)
 
@@ -180,12 +186,14 @@ class RAN(app_manager.RyuApp):
                         else:
                             ip_proto = int(r_msg['PROTO'], 16)
                             load.extend([('ip_proto', ip_proto)])
-                        self.load = load
                         setattr(match, '_fields2', load)
 
                     # ClassName Conversion
                     class_name = r_msg['CLASS_TAG'][1].replace('00', '')
                     class_name = binascii.a2b_hex(class_name)
+                    self.logger.info(
+                        "%s Class Name: %s", str(
+                            datetime.now()), class_name)
                     if max_ver in ['OF13', 'OF14', 'OF15']:
                         # Send all except inc
                         # Add flow if MsgType=0
@@ -198,7 +206,7 @@ class RAN(app_manager.RyuApp):
                             action = None
 
                             # conf.ini values
-                            config = self.conf_get(class_name)
+                            config = self.conf_class_check(class_name)
                             if config['queue'] is not None:
                                 self.queue = config['queue']
                             else:
@@ -222,11 +230,10 @@ class RAN(app_manager.RyuApp):
                                 inst = [parser.OFPInstructionGotoTable(1)]
 
                             if self.meter_id is not None:
-                                self.match = match
                                 self.priority = priority
                                 self.timeout = timeout
                                 self.inst = inst
-                                self.meter_req(datapath)
+                                self.create_meter(datapath, load)
                                 time.sleep(1)
                             else:
                                 self.logger.info(
@@ -234,14 +241,14 @@ class RAN(app_manager.RyuApp):
                                         datetime.now()))
                                 self.create_flow(
                                     datapath, timeout,
-                                    priority, match, inst)
+                                    priority, inst, load)
 
                         # Delete IP Flow if Msg Type=1
                         elif int(r_msg['MSG_TYPE'], 16) == 1:
                             self.logger.info(
                                 "%s Sending Flow", str(
                                     datetime.now()))
-                            self.del_flow(datapath, match)
+                            self.delete_flow(datapath, match)
                             self.logger.info(
                                 "%s Flow deletion sent", str(
                                     datetime.now()))
@@ -256,7 +263,7 @@ class RAN(app_manager.RyuApp):
                             self.logger.info(
                                 "%s Sending Flow", str(
                                     datetime.now()))
-                            self.del_flow(datapath, match)
+                            self.delete_flow(datapath, match)
                             self.logger.info(
                                 "%s All flow deletion sent", str(
                                     datetime.now()))
@@ -401,8 +408,8 @@ class RAN(app_manager.RyuApp):
                     else:
                         class_len = int(msg['CLASS_TAG'][0], 16)
                         self.offset += uint8 * class_len
-            m = copy.deepcopy(msg)
-            lst.append(m)
+            new_msg = copy.deepcopy(msg)
+            lst.append(new_msg)
             try:
                 if int(
                         join(
@@ -420,12 +427,14 @@ class RAN(app_manager.RyuApp):
                 msg_counter += 1
         return lst, msg_counter
 
-    def create_flow(self, datapath, timeout, priority, match, inst):
+    def create_flow(self, datapath, timeout, priority, inst, load):
         """Add FCN/CN Flows in table"""
         parser = datapath.ofproto_parser
 
         match = parser.OFPMatch()
-        setattr(match, '_fields2', self.load)
+        setattr(match, '_fields2', load)
+        for tuples in match._fields2:
+            self.logger.debug("%s", tuples)
         try:
             mod = parser.OFPFlowMod(
                 datapath=datapath,
@@ -445,9 +454,7 @@ class RAN(app_manager.RyuApp):
                 "%s Flow Creation sent to switch \'%d\'", str(
                     datetime.now()), datapath.id)
 
-# Delete flow
-
-    def del_flow(self, datapath, match):
+    def delete_flow(self, datapath, match):
         """Removes single/all flows from table
         not including the controller"""
         ofproto = datapath.ofproto
@@ -489,6 +496,7 @@ class RAN(app_manager.RyuApp):
             self.config.read(input())
         except (ValueError, SyntaxError):
             self.config.read('/home/sdn/RAN/conf.ini')
+            self.logger.info("using: /home/sdn/RAN/conf.ini")
 
         # self.config.read = conf_dir
         # if self.config.read == None:
@@ -497,7 +505,7 @@ class RAN(app_manager.RyuApp):
         class_name = self.config.sections()
         return class_name
 
-    def config_section_map(self, section):
+    def conf_section_map(self, section):
         """Split conf.ini into sections"""
         csm_d = {}
         options = self.config.options(section)
@@ -512,17 +520,17 @@ class RAN(app_manager.RyuApp):
                 csm_d[option] = None
         return csm_d
 
-    def conf_get(self, class_in):
+    def conf_class_check(self, class_in):
         """Check incoming RAP messages against conf.ini"""
         if class_in in self.class_name:
-            csm = self.config_section_map(class_in)
+            csm = self.conf_section_map(class_in)
             queue = csm.get('queue')  # queue number
             type_ = csm.get('type')
             meter_id = csm.get('meterid')
             rate = csm.get('rate')
             dscp_no = csm.get('dscp')
         else:
-            csm = self.config_section_map('default')
+            csm = self.conf_section_map('default')
             queue = csm.get('queue')  # queue number
             type_ = csm.get('type')
             meter_id = csm.get('meterid')
@@ -535,8 +543,8 @@ class RAN(app_manager.RyuApp):
                     rate=rate,
                     dscp_no=dscp_no)
 
-    def meter_req(self, datapath):
-        """Query Meter Stats Request when Packet Decoder has compeleted."""
+    def create_meter(self, datapath, load):
+        """Create meter."""
         # Get Var
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
@@ -545,9 +553,10 @@ class RAN(app_manager.RyuApp):
         type_ = self.type_
         rate = self.rate
         dscp_no = self.dscp_no
-        ver = version_check(datapath.ofproto.OFP_VERSION)
+        ofp_ver = version_check(datapath.ofproto.OFP_VERSION)
+        meter_mod = None
 
-        if ver in ['OF13', 'OF14']:
+        if ofp_ver in ['OF13', 'OF14']:
             # If DROP make drop
             if type_ == 'drop':
                 bands = [
@@ -555,7 +564,11 @@ class RAN(app_manager.RyuApp):
                         rate=int(rate),
                         burst_size=0)]
                 meter_mod = parser.OFPMeterMod(
-                    datapath, ofproto.OFPMC_ADD, ofproto.OFPMF_KBPS, int(meter_id), bands)
+                    datapath,
+                    ofproto.OFPMC_ADD,
+                    ofproto.OFPMF_KBPS,
+                    int(meter_id),
+                    bands)
                 self.logger.info(
                     "%s Sending MeterMod: Type = DROP", str(
                         datetime.now()))
@@ -567,25 +580,27 @@ class RAN(app_manager.RyuApp):
                         burst_size=0,
                         prec_level=int(dscp_no))]
                 meter_mod = parser.OFPMeterMod(
-                    datapath, ofproto.OFPMC_ADD, ofproto.OFPMF_KBPS, int(meter_id), bands)
+                    datapath,
+                    ofproto.OFPMC_ADD,
+                    ofproto.OFPMF_KBPS,
+                    int(meter_id),
+                    bands)
                 self.logger.info(
                     "%s Sending MeterMod: Type = DSCP", str(
                         datetime.now()))
             if meter_mod is not None:
                 datapath.send_msg(meter_mod)
         # Send flow
-        self.add_flow_meter_13(datapath)
+        self.add_flow_meter_13(datapath, load)
 
-    def add_flow_meter_13(self, datapath):
+    def add_flow_meter_13(self, datapath, load):
         """Add flow when meter exists"""
         parser = datapath.ofproto_parser
         ofproto = datapath.ofproto
 
         timeout = self.timeout
         priority = self.priority
-        match = self.match
         meter_id = self.meter_id
-
         action = [parser.OFPActionSetQueue(int(self.queue))]
         inst = [
             parser.OFPInstructionGotoTable(1),
@@ -598,12 +613,13 @@ class RAN(app_manager.RyuApp):
             datapath=datapath,
             timeout=timeout,
             priority=priority,
-            match=match,
-            inst=inst)
+            inst=inst,
+            load=load)
 
     @set_ev_cls(ofp_event.EventOFPErrorMsg, MAIN_DISPATCHER)
     def meter_error_handler(self, ev):
+        """CLI Error Handler"""
         if ev.msg.type == 12:
-            self.logger.info("%s Meter already exists, existing meter will be used", str(datetime.now()))
-
-
+            self.logger.info("%s Meter already exists, "
+                             "existing meter will be used", str(
+                                 datetime.now()))
