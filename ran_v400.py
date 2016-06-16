@@ -30,7 +30,6 @@ from ryu.lib import hub
 from ryu.ofproto import ofproto_v1_3
 from ryu.ofproto import ofproto_v1_4
 from ryu.ofproto import ofproto_v1_5
-
 from diffuse_parse import ipv4_to_int
 from diffuse_parse import proto_check
 from packet_process import check_header_offset
