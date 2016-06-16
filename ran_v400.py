@@ -17,11 +17,11 @@ import binascii
 import socket
 import struct
 import copy
-import time
 try:
     import configparser as ConfigParser
 except ImportError:
     import ConfigParser
+from datetime import datetime
 from ryu.base import app_manager
 from ryu.controller import ofp_event
 from ryu.controller.handler import CONFIG_DISPATCHER, MAIN_DISPATCHER
@@ -30,7 +30,7 @@ from ryu.lib import hub
 from ryu.ofproto import ofproto_v1_3
 from ryu.ofproto import ofproto_v1_4
 from ryu.ofproto import ofproto_v1_5
-from datetime import datetime
+
 from diffuse_parse import ipv4_to_int
 from diffuse_parse import proto_check
 from packet_process import check_header_offset
@@ -45,30 +45,35 @@ class RAN(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION,
                     ofproto_v1_4.OFP_VERSION,
                     ofproto_v1_5.OFP_VERSION]
-    meters = []
+    config = None
+    dscp_no = 0
+    inst = None
     meter_id = None
-    MeterModType = 0
+    meters = []
+    priority = None
+    queue = 0
+    rate = 0
+    type_ = 0
+    timeout = None
 
     def __init__(self, *args, **kwargs):
         super(RAN, self).__init__(*args, **kwargs)
-
-        self.max_ver = {}
+        self.ofp_ver = {}
         self.datapaths = {}
         self.offset = 0
         self.class_name = self.import_conf()
         self.diffuse_parser = hub.spawn(self.diffuse_parser)
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
-    def switch_features_handler(self, ev):
+    def switch_features_handler(self, event):
         """Handles connection between RYU and SDN Switches"""
-        msg = ev.msg
+        msg = event.msg
         datapath = msg.datapath
-        # self.ver = version_check(max(datapath.supported_ofp_version))
-        self.max_ver = version_check(datapath.ofproto.OFP_VERSION)
+        self.ofp_ver = version_check(datapath.ofproto.OFP_VERSION)
         self.logger.debug(
             '- Highest OF Version Supported on Switch ID:\'%s\': %s',
             datapath.id,
-            self.max_ver)
+            self.ofp_ver)
 
         if datapath.id not in self.datapaths:
             self.datapaths[datapath.id] = datapath
@@ -78,13 +83,13 @@ class RAN(app_manager.RyuApp):
         table_id = 0  # RAN always in lowest table
         priority = 0  # Miss flows are the last to match
 
-        if self.max_ver in ('OF15', 'OF14', 'OF13'):
+        if self.ofp_ver in ('OF15', 'OF14', 'OF13'):
             self.add_flow_miss(
                 datapath=datapath,
                 priority=priority,
                 table_id=table_id)
         else:
-            self.logger.debug('Error: Unsupported Version')
+            self.logger.debug('Error: %s Unsupported Version', self.ofp_ver)
 
         self.logger.debug('Datapath \'%s\'', self.datapaths)
 
@@ -111,167 +116,171 @@ class RAN(app_manager.RyuApp):
 
         sock = self.socket_tcp(host=host, port=port)
 
+        self.logger.info("%s RAN initiated", self.time_now())
+
         while True:
             # Receive Messages
             received_msg, msg_count = self.socket_receive(sock=sock)
-            self.logger.debug("%s Flow received", str(datetime.now()))
-            for d_n, datapath_key in enumerate(self.datapaths):
-                for msg_no in range(0, msg_count + 1, 1):
-                    r_msg = received_msg[msg_no]
+            try:
+                self.parser(received_msg, msg_count)
+            except RuntimeError:
+                print("Error: New Switch was added, trying again")
+                self.parser(received_msg, msg_count)
 
-                    # Check if protocol is either TCP or UDP
-                    proto = proto_check(int(r_msg['PROTO'], 16))
+    def parser(self, received_msg, msg_count):
+        """Action depending on Msg Type"""
+        for d_n, datapath_key in enumerate(self.datapaths):
+            for msg_no in range(0, msg_count + 1, 1):
+                r_msg = received_msg[msg_no]
 
-                    # Create TCP src and dst ports
-                    if proto == 'tcp':
-                        tcp_src = int(r_msg['SRC_PORT'], 16)
-                        tcp_dst = int(r_msg['DST_PORT'], 16)
-                    # Create UDP src and dst ports
-                    elif proto == 'udp':
-                        udp_src = int(r_msg['SRC_PORT'], 16)
-                        udp_dst = int(r_msg['DST_PORT'], 16)
+                # Import Most Recent Datapath of switch
+                datapath = self.datapaths[datapath_key]
+                ofproto = datapath.ofproto
+                parser = datapath.ofproto_parser
+                max_ver = version_check(datapath.ofproto.OFP_VERSION)
 
-                    # Create IPv4 src and dst variable
-                    ipv4_src = socket.inet_ntoa(
-                        struct.pack(">L", int(r_msg['SRC_IPV4'], 16)))
-                    ipv4_dst = socket.inet_ntoa(
-                        struct.pack(">L", int(r_msg['DST_IPV4'], 16)))
+                load = self.msg_converter(r_msg=r_msg, max_ver=max_ver)
 
-                    # Import Most Recent Datapath of switch
-                    datapath = self.datapaths[datapath_key]
-                    ofproto = datapath.ofproto
-                    parser = datapath.ofproto_parser
-                    max_ver = version_check(datapath.ofproto.OFP_VERSION)
-                    # Match
-                    match = parser.OFPMatch()
-                    load = []
+                # ClassName Conversion
+                class_name = r_msg['CLASS_TAG'][1].replace('00', '')
+                class_name = binascii.a2b_hex(class_name)
+                if max_ver in ['OF13', 'OF14', 'OF15']:
+                    # Send all except inc
+                    # Add flow if MsgType=0
+                    if int(r_msg['MSG_TYPE'], 16) == 0:
+                        # Flow Priority
+                        priority = int(r_msg['CLASS_TAG'][2], 16)
 
-                    if max_ver in ['OF13', 'OF14', 'OF15']:
-                        # Match Type - IP
-                        eth_type = 0x0800
-                        load.extend([('eth_type', eth_type)])
-                        if ipv4_src != '0.0.0.0':
-                            ipv4_src = ipv4_to_int(ipv4_src)
-                            load.extend([('ipv4_src', ipv4_src)])
-                        if ipv4_dst != '0.0.0.0':
-                            ipv4_dst = ipv4_to_int(ipv4_dst)
-                            load.extend([('ipv4_dst', ipv4_dst)])
-                        # Match TCP
-                        if proto == 'tcp':
-                            ip_proto = (int(r_msg['PROTO'], 16))
-                            load.extend([('ip_proto', ip_proto)])
-                            # Match TCP src port
-                            if tcp_src != 0:
-                                load.extend([('tcp_src', tcp_src)])
-                            # Match TCP dst port
-                            if tcp_dst != 0:
-                                load.extend([('tcp_dst', tcp_dst)])
-                        # Match UDP
-                        elif proto == 'udp':
-                            ip_proto = int(r_msg['PROTO'], 16)
-                            load.extend([('ip_proto', ip_proto)])
-                            # Match UDP src port
-                            if udp_src != 0:
-                                load.extend([('udp_src', udp_src)])
-                            # Match UDP dst port
-                            if udp_dst != 0:
-                                load.extend([('udp_dst', udp_dst)])
-                        else:
-                            ip_proto = int(r_msg['PROTO'], 16)
-                            load.extend([('ip_proto', ip_proto)])
-                        self.load = load
-                        setattr(match, '_fields2', load)
+                        # Idle & Hard Timeout
+                        timeout = int(r_msg['TIMEOUT'], 16)
+                        action = None
 
-                    # ClassName Conversion
-                    class_name = r_msg['CLASS_TAG'][1].replace('00', '')
-                    class_name = binascii.a2b_hex(class_name)
-                    if max_ver in ['OF13', 'OF14', 'OF15']:
-                        # Send all except inc
-                        # Add flow if MsgType=0
-                        if int(r_msg['MSG_TYPE'], 16) == 0:
-                            # Flow Priority
-                            priority = int(r_msg['CLASS_TAG'][2], 16)
-
-                            # Idle & Hard Timeout
-                            timeout = int(r_msg['TIMEOUT'], 16)
-                            action = None
-
-                            # conf.ini values
-                            config = self.conf_get(class_name)
-                            print(config)
+                        # conf.ini values
+                        config = self.conf_class_check(class_name)
+                        if config['queue'] is not None:
                             self.queue = config['queue']
-                            self.type_ = config['type']
-                            self.meter_id = config['meter_id']
-                            self.rate = config['rate']
-                            self.dscp_no = config['dscp_no']
-
-                            if self.queue is not None:
-                                action = [parser.OFPActionSetQueue(
-                                    int(self.queue))]
-
-                            if action is not None:
-                                inst = [
-                                    parser.OFPInstructionGotoTable(1),
-                                    parser.OFPInstructionActions(
-                                        ofproto.OFPIT_APPLY_ACTIONS,
-                                        action)]
-                            else:
-                                inst = [parser.OFPInstructionGotoTable(1)]
-
-                            if self.meter_id is not None:
-                                self.match = match
-                                self.priority = priority
-                                self.timeout = timeout
-                                self.inst = inst
-                                self.meter_req(datapath)
-                                time.sleep(1)
-                            else:
-                                self.logger.debug(
-                                    "%s Sending Flow", str(
-                                        datetime.now()))
-                                self.create_flow(
-                                    datapath, timeout,
-                                    priority, match, inst)
-
-                        # Delete IP Flow if Msg Type=1
-                        elif int(r_msg['MSG_TYPE'], 16) == 1:
-                            self.logger.debug(
-                                "%s Sending Flow", str(
-                                    datetime.now()))
-                            self.del_flow(datapath, match)
-                            self.logger.debug(
-                                "%s Flow deletion sent", str(
-                                    datetime.now()))
-
-                        # Delete All IP Flow if Msg Type=2
                         else:
-                            # Match
-                            match = parser.OFPMatch()
-                            load = []
-                            load.extend([('eth_type', 0x0800)])
-                            setattr(match, '_fields2', load)
-                            self.logger.debug(
-                                "%s Sending Flow", str(
-                                    datetime.now()))
-                            self.del_flow(datapath, match)
-                            self.logger.debug(
-                                "%s All flow deletion sent", str(
-                                    datetime.now()))
+                            self.queue = 0
+                        self.type_ = config['type']
+                        self.meter_id = config['meter_id']
+                        self.rate = config['rate']
+                        self.dscp_no = config['dscp_no']
+
+                        if self.queue is not None:
+                            action = [parser.OFPActionSetQueue(
+                                int(self.queue))]
+
+                        if action is not None:
+                            inst = [
+                                parser.OFPInstructionGotoTable(1),
+                                parser.OFPInstructionActions(
+                                    ofproto.OFPIT_APPLY_ACTIONS,
+                                    action)]
+                        else:
+                            inst = [parser.OFPInstructionGotoTable(1)]
+
+                        if self.meter_id is not None:
+                            self.priority = priority
+                            self.timeout = timeout
+                            self.inst = inst
+                            self.create_meter(datapath, load)
+                        else:
+                            self.logger.info(
+                                "%s Sending Flow", self.time_now())
+                            self.create_flow(
+                                datapath, timeout,
+                                priority, inst, load)
+
+                    # Delete IP Flow if Msg Type=1
+                    elif int(r_msg['MSG_TYPE'], 16) == 1:
+                        self.logger.info(
+                            "%s Sending Flow", self.time_now())
+                        self.delete_flow(datapath, load)
+                        self.logger.info(
+                            "%s Flow deletion sent", self.time_now())
+
+                    # Delete All IP Flow if Msg Type=2
+                    else:
+                        # Match
+                        load = []
+                        load.extend([('eth_type', 0x0800)])
+                        self.logger.info(
+                            "%s Sending Flow", self.time_now())
+                        self.delete_flow(datapath, load)
+                        self.logger.info(
+                            "%s All flow deletion sent", self.time_now())
+
+    @staticmethod
+    def msg_converter(r_msg, max_ver):
+        """Get Tuple and convert"""
+        # Check if protocol is either TCP or UDP
+        proto = proto_check(int(r_msg['PROTO'], 16))
+
+        # Create TCP src and dst ports
+        tcp_src = int(r_msg['SRC_PORT'], 16)
+        tcp_dst = int(r_msg['DST_PORT'], 16)
+        # Create UDP src and dst ports
+        udp_src = int(r_msg['SRC_PORT'], 16)
+        udp_dst = int(r_msg['DST_PORT'], 16)
+
+        # Create IPv4 src and dst variable
+        ipv4_src = socket.inet_ntoa(
+            struct.pack(">L", int(r_msg['SRC_IPV4'], 16)))
+        ipv4_dst = socket.inet_ntoa(
+            struct.pack(">L", int(r_msg['DST_IPV4'], 16)))
+
+        load = []
+
+        if max_ver in ['OF13', 'OF14', 'OF15']:
+            # Match Type - IP
+            eth_type = 0x0800
+            load.extend([('eth_type', eth_type)])
+            if ipv4_src != '0.0.0.0':
+                ipv4_src = ipv4_to_int(ipv4_src)
+                load.extend([('ipv4_src', ipv4_src)])
+            if ipv4_dst != '0.0.0.0':
+                ipv4_dst = ipv4_to_int(ipv4_dst)
+                load.extend([('ipv4_dst', ipv4_dst)])
+            # Match TCP
+            if proto == 'tcp':
+                ip_proto = (int(r_msg['PROTO'], 16))
+                load.extend([('ip_proto', ip_proto)])
+                # Match TCP src port
+                if tcp_src != 0:
+                    load.extend([('tcp_src', tcp_src)])
+                # Match TCP dst port
+                if tcp_dst != 0:
+                    load.extend([('tcp_dst', tcp_dst)])
+            # Match UDP
+            elif proto == 'udp':
+                ip_proto = int(r_msg['PROTO'], 16)
+                load.extend([('ip_proto', ip_proto)])
+                # Match UDP src port
+                if udp_src != 0:
+                    load.extend([('udp_src', udp_src)])
+                # Match UDP dst port
+                if udp_dst != 0:
+                    load.extend([('udp_dst', udp_dst)])
+            else:
+                ip_proto = int(r_msg['PROTO'], 16)
+                load.extend([('ip_proto', ip_proto)])
+        return load
 
     def socket_tcp(self, host, port):
         """Bind & Create Sockets"""
         _sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.logger.debug('%s Socket created', str(datetime.now()))
+        self.logger.info('%s Socket created', self.time_now())
 
         try:
             _sock.bind((host, port))
         except socket.error:
-            self.logger.debug('%s Binding error', str(datetime.now()))
+            self.logger.debug('%s Binding error', self.time_now())
             self.logger.debug(
-                '%s Socket in TIME-WAIT state, wait until socket is closed', str(datetime.now()))
+                '%s Socket in TIME-WAIT state, wait until socket is closed',
+                self.time_now())
             exit(1)
         else:
-            self.logger.debug('%s Binding successful', str(datetime.now()))
+            self.logger.info('%s Binding successful', self.time_now())
 
         try:
             _sock.listen(1)
@@ -280,7 +289,7 @@ class RAN(app_manager.RyuApp):
                 '%s Cannot listen on port %d', str(
                     datetime.now()), port)
         else:
-            self.logger.debug(
+            self.logger.info(
                 '%s Socket now listening on port %d', str(
                     datetime.now()), port)
 
@@ -296,6 +305,7 @@ class RAN(app_manager.RyuApp):
                 break
             msg = self.packet_parse(data)
             conn.close()
+            self.logger.info("%s Flow received", self.time_now())
             return msg
 
     def packet_parse(self, data):
@@ -398,8 +408,8 @@ class RAN(app_manager.RyuApp):
                     else:
                         class_len = int(msg['CLASS_TAG'][0], 16)
                         self.offset += uint8 * class_len
-            m = copy.deepcopy(msg)
-            lst.append(m)
+            new_msg = copy.deepcopy(msg)
+            lst.append(new_msg)
             try:
                 if int(
                         join(
@@ -417,13 +427,14 @@ class RAN(app_manager.RyuApp):
                 msg_counter += 1
         return lst, msg_counter
 
-    def create_flow(self, datapath, timeout, priority, match, inst):
+    def create_flow(self, datapath, timeout, priority, inst, load):
         """Add FCN/CN Flows in table"""
         parser = datapath.ofproto_parser
 
         match = parser.OFPMatch()
-        setattr(match, '_fields2', self.load)
-        print(match)
+        setattr(match, '_fields2', load)
+        # for tuples in match._fields2:
+        #     self.logger.debug("%s", tuples)
         try:
             mod = parser.OFPFlowMod(
                 datapath=datapath,
@@ -436,20 +447,22 @@ class RAN(app_manager.RyuApp):
             datapath.send_msg(mod)
         except RuntimeError:
             self.logger.debug(
-                "%s Could not send flow to switch \'%d\'", str(
-                    datetime.now()), datapath.id)
+                "%s Could not send flow to switch \'%d\'",
+                self.time_now(),
+                datapath.id)
         else:
-            self.logger.debug(
-                "%s Flow Creation sent to switch \'%d\'", str(
-                    datetime.now()), datapath.id)
+            self.logger.info(
+                "%s Flow Creation sent to switch \'%d\'",
+                self.time_now(),
+                datapath.id)
 
-# Delete flow
-
-    def del_flow(self, datapath, match):
+    def delete_flow(self, datapath, load):
         """Removes single/all flows from table
         not including the controller"""
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
+        match = parser.OFPMatch()
+        setattr(match, '_fields2', load)
         try:
             mod = parser.OFPFlowMod(
                 datapath=datapath,
@@ -469,14 +482,17 @@ class RAN(app_manager.RyuApp):
             datapath.send_msg(mod)
         except RuntimeError:
             self.logger.debug(
-                "%s Could not send flow deletion to switch \'%d\'", str(
-                    datetime.now()), datapath.id)
+                "%s Could not send flow deletion to switch \'%d\'",
+                self.time_now(),
+                datapath.id)
         else:
-            self.logger.debug(
-                "%s Flow deletion sent to switch \'%d\'", str(
-                    datetime.now()), datapath.id)
+            self.logger.info(
+                "%s Flow deletion sent to switch \'%d\'",
+                self.time_now(),
+                datapath.id)
 
 # Section off conf file
+
     def import_conf(self):
         """Read conf.ini"""
         self.config = ConfigParser.ConfigParser()
@@ -486,6 +502,7 @@ class RAN(app_manager.RyuApp):
             self.config.read(input())
         except (ValueError, SyntaxError):
             self.config.read('/home/sdn/RAN/conf.ini')
+            self.logger.info("using: /home/sdn/RAN/conf.ini")
 
         # self.config.read = conf_dir
         # if self.config.read == None:
@@ -494,7 +511,7 @@ class RAN(app_manager.RyuApp):
         class_name = self.config.sections()
         return class_name
 
-    def config_section_map(self, section):
+    def conf_section_map(self, section):
         """Split conf.ini into sections"""
         csm_d = {}
         options = self.config.options(section)
@@ -509,22 +526,26 @@ class RAN(app_manager.RyuApp):
                 csm_d[option] = None
         return csm_d
 
-    def conf_get(self, class_in):
+    def conf_class_check(self, class_in):
         """Check incoming RAP messages against conf.ini"""
         if class_in in self.class_name:
-            csm = self.config_section_map(class_in)
+            class_name = class_in
+            csm = self.conf_section_map(class_in)
             queue = csm.get('queue')  # queue number
             type_ = csm.get('type')
             meter_id = csm.get('meterid')
             rate = csm.get('rate')
             dscp_no = csm.get('dscp')
         else:
-            csm = self.config_section_map('default')
+            class_name = "default"
+            csm = self.conf_section_map('default')
             queue = csm.get('queue')  # queue number
             type_ = csm.get('type')
             meter_id = csm.get('meterid')
             rate = csm.get('rate')
             dscp_no = csm.get('dscp')
+        self.logger.info(
+            "%s Class Name: %s", self.time_now(), class_name)
 
         return dict(queue=queue,
                     type=type_,
@@ -532,86 +553,62 @@ class RAN(app_manager.RyuApp):
                     rate=rate,
                     dscp_no=dscp_no)
 
-    def meter_req(self, datapath):
-        """Query Meter Stats Request when Packet Decoder has compeleted."""
-        parser = datapath.ofproto_parser
-        ofproto = datapath.ofproto
-        req = parser.OFPMeterStatsRequest(datapath=datapath,
-                                          flags=0,
-                                          meter_id=ofproto.OFPM_ALL)
-        datapath.send_msg(req)
-        self.logger.debug(
-            "%s MeterStatsRequest sent to switch \'%s\', waiting for reply...", str(
-                datetime.now()), datapath.id)
-
-    @set_ev_cls(ofp_event.EventOFPMeterStatsReply, MAIN_DISPATCHER)
-    def meter_stats_reply_handler(self, ev):
-        """Decode meters stats replies"""
-        # TODO: Meter for OF1.5
-        # Potential problem: Variables stored waiting for the meter stats reply
-        # If new meter mod comes then old meter variables will be deleted before
-        # it is send by the reply handler.
-        datapath = ev.msg.datapath
+    def create_meter(self, datapath, load):
+        """Create meter."""
+        # Get Var
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
-
-        self.logger.debug(
-            "%s MeterStatsReply received for switch \'%s\'", str(
-                datetime.now()), datapath.id)
 
         meter_id = self.meter_id
         type_ = self.type_
         rate = self.rate
         dscp_no = self.dscp_no
-        meters = []
-        # print(meter_id)
-        ver = version_check(datapath.ofproto.OFP_VERSION)
+        ofp_ver = version_check(datapath.ofproto.OFP_VERSION)
+        meter_mod = None
 
-        if ver in ['OF13', 'OF14']:
-            for stat in ev.msg.body:
-                meters.append(stat.meter_id)
-            if self.meter_id is not None:
-                if int(self.meter_id) not in meters:
-                    if type_ == 'drop':
-                        bands = [
-                            parser.OFPMeterBandDrop(
-                                rate=int(rate),
-                                burst_size=0)]
-                        meter_mod = parser.OFPMeterMod(
-                            datapath, ofproto.OFPMC_ADD, ofproto.OFPMF_KBPS, int(meter_id), bands)
-                        self.logger.debug(
-                            "%s Sending MeterMod: Type = DROP", str(
-                                datetime.now()))
-                        datapath.send_msg(meter_mod)
-                    elif type_ == 'dscp':
-                        bands = [
-                            parser.OFPMeterBandDscpRemark(
-                                rate=int(rate),
-                                burst_size=0,
-                                prec_level=int(dscp_no))]
-                        meter_mod = parser.OFPMeterMod(
-                            datapath, ofproto.OFPMC_ADD, ofproto.OFPMF_KBPS, int(meter_id), bands)
-                        self.logger.debug(
-                            "%s Sending MeterMod: Type = DSCP", str(
-                                datetime.now()))
-                        datapath.send_msg(meter_mod)
-                else:
-                    self.logger.debug(
-                        "%s Existing Meter ID detected, Old meter will be used", str(
-                            datetime.now()))
+        if ofp_ver in ['OF13', 'OF14']:
+            # If DROP make drop
+            if type_ == 'drop':
+                bands = [
+                    parser.OFPMeterBandDrop(
+                        rate=int(rate),
+                        burst_size=0)]
+                meter_mod = parser.OFPMeterMod(
+                    datapath,
+                    ofproto.OFPMC_ADD,
+                    ofproto.OFPMF_KBPS,
+                    int(meter_id),
+                    bands)
+                self.logger.info(
+                    "%s Sending MeterMod: Type = DROP", self.time_now())
+            # if DSCP make DSCP
+            elif type_ == 'dscp':
+                bands = [
+                    parser.OFPMeterBandDscpRemark(
+                        rate=int(rate),
+                        burst_size=0,
+                        prec_level=int(dscp_no))]
+                meter_mod = parser.OFPMeterMod(
+                    datapath,
+                    ofproto.OFPMC_ADD,
+                    ofproto.OFPMF_KBPS,
+                    int(meter_id),
+                    bands)
+                self.logger.info(
+                    "%s Sending MeterMod: Type = DSCP", self.time_now())
+            if meter_mod is not None:
+                datapath.send_msg(meter_mod)
+        # Send flow
+        self.add_flow_meter_13(datapath, load)
 
-            self.add_flow_meter_13(datapath)
-
-    def add_flow_meter_13(self, datapath):
+    def add_flow_meter_13(self, datapath, load):
         """Add flow when meter exists"""
         parser = datapath.ofproto_parser
         ofproto = datapath.ofproto
 
         timeout = self.timeout
         priority = self.priority
-        match = self.match
         meter_id = self.meter_id
-
         action = [parser.OFPActionSetQueue(int(self.queue))]
         inst = [
             parser.OFPInstructionGotoTable(1),
@@ -619,10 +616,23 @@ class RAN(app_manager.RyuApp):
                 ofproto.OFPIT_APPLY_ACTIONS,
                 action)]
         inst.insert(0, parser.OFPInstructionMeter(int(meter_id)))
-        self.logger.debug("%s Sending Flow", str(datetime.now()))
+        self.logger.info("%s Sending Flow", self.time_now())
         self.create_flow(
             datapath=datapath,
             timeout=timeout,
             priority=priority,
-            match=match,
-            inst=inst)
+            inst=inst,
+            load=load)
+
+    @set_ev_cls(ofp_event.EventOFPErrorMsg, MAIN_DISPATCHER)
+    def meter_error_handler(self, event):
+        """CLI Error Handler"""
+        if event.msg.type == 12:
+            self.logger.info("%s Meter already exists, "
+                             "existing meter was used", self.time_now())
+
+    @staticmethod
+    def time_now():
+        """Current Time"""
+        cur_time = str(datetime.now())
+        return cur_time
