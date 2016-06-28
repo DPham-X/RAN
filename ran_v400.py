@@ -1,38 +1,40 @@
-"""RAN_v400"""
-# Copyright (C) 2011 Nippon Telegraph and Telephone Corporation.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#    http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
-# implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+"""Ryu Action Node v2 - RYU based application
+
+Run:
+    ryu-manager ./ran_v2.py
+
+- Compatible with ryu.app.simple_switch and ryu.app.rest_router running on Open vSwitch OpenFlow Table 2
+- Supports Multi Version Switches
+    - OpenFlow 1.3
+    - OpenFlow 1.4
+    - OpenFlow 1.5 (Limited, no meters)
+- Supports Multiple Switches
+
+"""
+
+# Import common internal libraries
 import binascii
 import socket
 import struct
 import copy
-try:
-    import configparser as ConfigParser
-except ImportError:
-    import ConfigParser
+import ConfigParser
 from datetime import datetime
+
+# Import RYU required libraries
 from ryu.base import app_manager
 from ryu.controller import ofp_event
-from ryu.controller.handler import CONFIG_DISPATCHER, MAIN_DISPATCHER
+from ryu.controller.handler import CONFIG_DISPATCHER
+from ryu.controller.handler import MAIN_DISPATCHER
 from ryu.controller.handler import set_ev_cls
 from ryu.lib import hub
 from ryu.ofproto import ofproto_v1_3
 from ryu.ofproto import ofproto_v1_4
 from ryu.ofproto import ofproto_v1_5
+
+# Import RAN required libraries
 from diffuse_parse import ipv4_to_int
 from diffuse_parse import proto_check
-from packet_process import check_header_offset
+from packet_process import header_offset_check
 from packet_process import join
 from packet_process import msg_check
 from packet_process import template_check
@@ -40,10 +42,16 @@ from ver_check import version_check
 
 
 class RAN(app_manager.RyuApp):
-    """Ryu Action Node v400"""
+    """Ryu Action Node v2 Northbound Application
+    - Parses 'Classifier Node' and 'Fake Classifier Node' based packets using the 'Remote Actions Protocol' (RAP).
+    - Implements class based prioritisation set by a configuration file
+
+    """
+    # List of supported OpenFlow Versions
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION,
                     ofproto_v1_4.OFP_VERSION,
                     ofproto_v1_5.OFP_VERSION]
+    # Initialise variables
     config = None
     dscp_no = 0
     inst = None
@@ -57,31 +65,53 @@ class RAN(app_manager.RyuApp):
 
     def __init__(self, *args, **kwargs):
         super(RAN, self).__init__(*args, **kwargs)
+
+        # Contains the versions for each connected SDN switch
         self.ofp_ver = {}
+
+        # Contains the datapaths for each connected SDN switch
         self.datapaths = {}
+
+        # Offset used to know location when parsing a RAP message.
         self.offset = 0
+
+        # List of valid class names that have a configuration set, including a
+        # required 'default' class
         self.class_name = self.import_conf()
-        self.diffuse_parser = hub.spawn(self.diffuse_parser)
+
+        # Initialises the Diffuse Parser module to receive any RAP messages.
+        self.diffuse_parser_initialiser = hub.spawn(self.diffuse_parser_initialiser)
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, event):
-        """Handles connection between RYU and SDN Switches"""
+        """Handles connection between RYU and the SDN Switches
+        If the version of the SDN Switch is supported, create a rule which sends all flow miss packets to the controller
+
+        Parameters
+        ----------
+        event: ?
+            The event of when a new switch connects to a controller
+
+        """
         msg = event.msg
         datapath = msg.datapath
+        # Get OpenFlow Version for connected switch
         self.ofp_ver = version_check(datapath.ofproto.OFP_VERSION)
         self.logger.debug(
             '- Highest OF Version Supported on Switch ID:\'%s\': %s',
             datapath.id,
             self.ofp_ver)
 
+        # Add/Update Switch datapath into list of connected switches
         if datapath.id not in self.datapaths:
             self.datapaths[datapath.id] = datapath
-        else:  # Update
+        else:
             self.datapaths.update({datapath.id: datapath})
 
         table_id = 0  # RAN always in lowest table
         priority = 0  # Miss flows are the last to match
 
+        # Create on flow-miss go to controller rule on SDN Switch if OpenFlow version is compatible
         if self.ofp_ver in ('OF15', 'OF14', 'OF13'):
             self.add_flow_miss(
                 datapath=datapath,
@@ -92,66 +122,115 @@ class RAN(app_manager.RyuApp):
 
         self.logger.debug('Datapath \'%s\'', self.datapaths)
 
-    @staticmethod
-    def add_flow_miss(datapath, priority, table_id):
-        """Add controller flows miss (v13, v14, v15)"""
-        # Table 0 Miss flows will continue on to Table 1 and any flows created by
-        # the RAN will be on Table 0
+    def add_flow_miss(self, datapath, priority, table_id):
+        # TODO
+        """Sends the add flow miss to the controller and a goto next table rules to the SDN switch
+
+        Parameters
+        ----------
+        datapath : class?
+            The datapath connected to the controller
+        priority : int
+            The priority of the rule created in the SDN switch
+        table_id : int
+            Table ID where the rule is created
+
+        """
+        # Get datapath functions
+        ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
         match = parser.OFPMatch()
-        inst = [
-            parser.OFPInstructionGotoTable(
-                table_id +
-                1)]  # Go to next table
-        mod = parser.OFPFlowMod(datapath=datapath, priority=priority,
-                                match=match, instructions=inst,
-                                table_id=table_id)
-        datapath.send_msg(mod)
 
-    def diffuse_parser(self):
-        """Parses FCN/CN RAP Protocol messages"""
-        host = ''
-        port = 5000
+        # Create first instruction - Go to next table
+        inst_goto_next = [parser.OFPInstructionGotoTable(table_id + 1)]
+        # Create action - Send packet to controller on match miss
+        actions = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER,
+                                          ofproto.OFPCML_NO_BUFFER)]
+        # Create second instruction from action
+        inst_apply_action = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
 
+        # Package Flow modification add messages
+        mod1 = parser.OFPFlowMod(datapath=datapath,
+                                 priority=priority,
+                                 match=match,
+                                 instructions=inst_apply_action,
+                                 table_id=0)
+        mod2 = parser.OFPFlowMod(datapath=datapath,
+                                 priority=priority + 1,
+                                 match=match,
+                                 instructions=inst_goto_next,
+                                 table_id=0)
+
+        # Send messages to SDN Switch
+        datapath.send_msg(mod1)
+        datapath.send_msg(mod2)
+
+    def diffuse_parser_initialiser(self):
+        """Initialises the parser for Fake Classifier Node and Classifier Nodes' RAP Protocol messages
+
+        """
+        host = ''  # Listen on localhost
+        port = 5000  # Listen on port 5000
+
+        # Initialise the socket to listen on host and port using TCP
         sock = self.socket_tcp(host=host, port=port)
-
         self.logger.info("%s RAN initiated", self.time_now())
 
         while True:
-            # Receive Messages
+            # Receive incoming messages
             received_msg, msg_count = self.socket_receive(sock=sock)
+
+            # Parse and implement message through RYU
             try:
-                self.parser(received_msg, msg_count)
+                self.parser_action(received_msg, msg_count)
             except RuntimeError:
                 print("Error: New Switch was added, trying again")
-                self.parser(received_msg, msg_count)
+                self.parser_action(received_msg, msg_count)
 
-    def parser(self, received_msg, msg_count):
-        """Action depending on Msg Type"""
+    def parser_action(self, received_msg, msg_count):
+        """Implements parsed data depending on Msg Type
+
+        MsgType : 0
+            Send Add Flow to the SDN Switch
+        MsgType : 1
+            Delete matching 5-tuple IP Flows
+        MsgType : 2
+            Delete all IP Flows
+
+        Parameters
+        ----------
+        received_msg: list
+            Each index of the list contains a dictionary containing a set of Action Parameters
+        msg_count: int
+            Number of sets of Action parameters parsed
+
+        """
         for d_n, datapath_key in enumerate(self.datapaths):
-            for msg_no in range(0, msg_count + 1, 1):
-                r_msg = received_msg[msg_no]
+            for msg_index in range(0, msg_count + 1, 1):
+                # Get current set of action parameters from the received message
+                parameter_set = received_msg[msg_index]
 
-                # Import Most Recent Datapath of switch
+                # Import most recent 'Datapath' of switch and their functions
                 datapath = self.datapaths[datapath_key]
                 ofproto = datapath.ofproto
                 parser = datapath.ofproto_parser
+                # Check if the switch's datapath is compatible
                 max_ver = version_check(datapath.ofproto.OFP_VERSION)
 
-                load = self.msg_converter(r_msg=r_msg, max_ver=max_ver)
+                load = self.msg_converter(parameter_set=parameter_set, max_ver=max_ver)
 
                 # ClassName Conversion
-                class_name = r_msg['CLASS_TAG'][1].replace('00', '')
+                class_name = parameter_set['CLASS_TAG'][1].replace('00', '')
                 class_name = binascii.a2b_hex(class_name)
                 if max_ver in ['OF13', 'OF14', 'OF15']:
                     # Send all except inc
                     # Add flow if MsgType=0
-                    if int(r_msg['MSG_TYPE'], 16) == 0:
+                    if int(parameter_set['MSG_TYPE'], 16) == 0:
                         # Flow Priority
-                        priority = int(r_msg['CLASS_TAG'][2], 16)
+                        priority = int(parameter_set['CLASS_TAG'][2], 16)
 
                         # Idle & Hard Timeout
-                        timeout = int(r_msg['TIMEOUT'], 16)
+                        timeout = int(parameter_set['TIMEOUT'], 16)
                         action = None
 
                         # conf.ini values
@@ -159,7 +238,7 @@ class RAN(app_manager.RyuApp):
                         if config['queue'] is not None:
                             self.queue = config['queue']
                         else:
-                            self.queue = 0
+                            self.queue = None
                         self.type_ = config['type']
                         self.meter_id = config['meter_id']
                         self.rate = config['rate']
@@ -191,7 +270,7 @@ class RAN(app_manager.RyuApp):
                                 priority, inst, load)
 
                     # Delete IP Flow if Msg Type=1
-                    elif int(r_msg['MSG_TYPE'], 16) == 1:
+                    elif int(parameter_set['MSG_TYPE'], 16) == 1:
                         self.logger.info(
                             "%s Sending Flow", self.time_now())
                         self.delete_flow(datapath, load)
@@ -210,68 +289,102 @@ class RAN(app_manager.RyuApp):
                             "%s All flow deletion sent", self.time_now())
 
     @staticmethod
-    def msg_converter(r_msg, max_ver):
-        """Get Tuple and convert"""
+    def msg_converter(parameter_set, max_ver):
+        """Get the 5-tuple parameters and convert them from hex
+
+        Parameters
+        ----------
+        parameter_set: dict
+            The dictionary contains all the parsed action parameters for a set
+        max_ver: str
+            Highest supported version of the switch
+
+        Return
+        ------
+        match_parameters: tuple up to len 5
+            Contains the 5-tuple information for match use
+
+        """
+        match_parameters = []
+
         # Check if protocol is either TCP or UDP
-        proto = proto_check(int(r_msg['PROTO'], 16))
+        proto = proto_check(int(parameter_set['PROTO'], 16))
 
-        # Create TCP src and dst ports
-        tcp_src = int(r_msg['SRC_PORT'], 16)
-        tcp_dst = int(r_msg['DST_PORT'], 16)
-        # Create UDP src and dst ports
-        udp_src = int(r_msg['SRC_PORT'], 16)
-        udp_dst = int(r_msg['DST_PORT'], 16)
+        # Create TCP Source and Destination ports
+        tcp_src = int(parameter_set['SRC_PORT'], 16)
+        tcp_dst = int(parameter_set['DST_PORT'], 16)
+        # Create UDP Source and Destination ports
+        udp_src = int(parameter_set['SRC_PORT'], 16)
+        udp_dst = int(parameter_set['DST_PORT'], 16)
 
-        # Create IPv4 src and dst variable
+        # Create IPv4 Source and Destination IPs
         ipv4_src = socket.inet_ntoa(
-            struct.pack(">L", int(r_msg['SRC_IPV4'], 16)))
+            struct.pack(">L", int(parameter_set['SRC_IPV4'], 16)))
         ipv4_dst = socket.inet_ntoa(
-            struct.pack(">L", int(r_msg['DST_IPV4'], 16)))
-
-        load = []
+            struct.pack(">L", int(parameter_set['DST_IPV4'], 16)))
 
         if max_ver in ['OF13', 'OF14', 'OF15']:
-            # Match Type - IP
+            # Append Source of Destination IP if they exist
             eth_type = 0x0800
-            load.extend([('eth_type', eth_type)])
+            match_parameters.extend([('eth_type', eth_type)])
             if ipv4_src != '0.0.0.0':
                 ipv4_src = ipv4_to_int(ipv4_src)
-                load.extend([('ipv4_src', ipv4_src)])
+                match_parameters.extend([('ipv4_src', ipv4_src)])
             if ipv4_dst != '0.0.0.0':
                 ipv4_dst = ipv4_to_int(ipv4_dst)
-                load.extend([('ipv4_dst', ipv4_dst)])
-            # Match TCP
+                match_parameters.extend([('ipv4_dst', ipv4_dst)])
+
+            # Append TCP, its Source and Destination Port if they exist
             if proto == 'tcp':
-                ip_proto = (int(r_msg['PROTO'], 16))
-                load.extend([('ip_proto', ip_proto)])
+                ip_proto = (int(parameter_set['PROTO'], 16))
+                match_parameters.extend([('ip_proto', ip_proto)])
                 # Match TCP src port
                 if tcp_src != 0:
-                    load.extend([('tcp_src', tcp_src)])
+                    match_parameters.extend([('tcp_src', tcp_src)])
                 # Match TCP dst port
                 if tcp_dst != 0:
-                    load.extend([('tcp_dst', tcp_dst)])
-            # Match UDP
+                    match_parameters.extend([('tcp_dst', tcp_dst)])
+
+            # Append UDP, its Source and Destination Port if they exist
             elif proto == 'udp':
-                ip_proto = int(r_msg['PROTO'], 16)
-                load.extend([('ip_proto', ip_proto)])
+                ip_proto = int(parameter_set['PROTO'], 16)
+                match_parameters.extend([('ip_proto', ip_proto)])
                 # Match UDP src port
                 if udp_src != 0:
-                    load.extend([('udp_src', udp_src)])
+                    match_parameters.extend([('udp_src', udp_src)])
                 # Match UDP dst port
                 if udp_dst != 0:
-                    load.extend([('udp_dst', udp_dst)])
-            else:
-                ip_proto = int(r_msg['PROTO'], 16)
-                load.extend([('ip_proto', ip_proto)])
-        return load
+                    match_parameters.extend([('udp_dst', udp_dst)])
+
+            # If the protocol is neither TCP/UDP parse number
+            elif int(parameter_set['PROTO'], 16) is not 0:
+                ip_proto = int(parameter_set['PROTO'], 16)
+                match_parameters.extend([('ip_proto', ip_proto)])
+        return match_parameters
 
     def socket_tcp(self, host, port):
-        """Bind & Create Sockets"""
-        _sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        """Create Sockets and listen on that port
+
+        Parameters
+        ----------
+        host: str
+            The place to listen from
+        port: int
+            The port to listen from
+
+        Returns
+        -------
+        sock:
+            The location of the socket
+        """
+
+        # Create socket
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.logger.info('%s Socket created', self.time_now())
 
+        # Bind to socket
         try:
-            _sock.bind((host, port))
+            sock.bind((host, port))
         except socket.error:
             self.logger.debug('%s Binding error', self.time_now())
             self.logger.debug(
@@ -281,8 +394,9 @@ class RAN(app_manager.RyuApp):
         else:
             self.logger.info('%s Binding successful', self.time_now())
 
+        # Listen to the socket
         try:
-            _sock.listen(1)
+            sock.listen(1)
         except socket.error:
             self.logger.debug(
                 '%s Cannot listen on port %d', str(
@@ -291,30 +405,58 @@ class RAN(app_manager.RyuApp):
             self.logger.info(
                 '%s Socket now listening on port %d', str(
                     datetime.now()), port)
-
-        return _sock
+        return sock
 
     def socket_receive(self, sock):
-        """Receive Message"""
+        """Accepts any TCP connections that connect to the socket and parses the payload
+
+        Parameters
+        ----------
+        sock:
+            The location of the socket
+
+        Returns
+        -------
+        msg:
+            The packet's payload containing the parameter sets
+        msg_count:
+            The number of parameter sets parsed in the message
+
+        """
         buffer_size = 1024
-        conn, addr = sock.accept()
+
+        # Accept TCP connection from a host
+        conn, address = sock.accept()
+
+        # Receive the packet, parse the payload and close the connection
         while True:
             data = conn.recv(buffer_size)
             if not data:
                 break
-            msg = self.packet_parse(data)
+            msg, msg_count = self.packet_parse(data)
             conn.close()
             self.logger.info("%s Flow received", self.time_now())
-            return msg
+            return msg, msg_count
 
     def packet_parse(self, data):
-        """Decode Message"""
+        """Decode Message
+
+        Parameters
+        ----------
+        data:
+            The incoming payload
+        """
+        # Reset the offset for each messages
         self.offset = 0
+
+        # Initialise variables
         template = []
         msg = {}
         message_check = True
         lst = []
         msg_counter = 0
+
+        # Static hex to int length
         uint64 = 8
         uint32 = 4
         uint16 = 2
@@ -324,23 +466,38 @@ class RAN(app_manager.RyuApp):
         payload = binascii.b2a_hex(data)
         split_msg = [payload[i:i + 2] for i in range(0, len(payload), 2)]
 
-        # Header data
+        # Create the header
         class Header:
-            """Initialise header"""
-            ver = join(msg=split_msg, offset=self.offset, hex=8),
-            self.offset += check_header_offset('ver')
-            m_len = join(msg=split_msg, offset=self.offset, hex=uint16),
-            self.offset += check_header_offset('m_len')
-            seq_no = join(msg=split_msg, offset=self.offset, hex=uint32),
-            self.offset += check_header_offset('seq_no')
-            time = join(msg=split_msg, offset=self.offset, hex=uint32),
-            self.offset += check_header_offset('time')
-            set_id = join(msg=split_msg, offset=self.offset, hex=uint16),
-            self.offset += check_header_offset('set_id')
-            set_len = join(msg=split_msg, offset=self.offset, hex=uint16),
-            self.offset += check_header_offset('set_len')
+            """Initialise header
 
-        # Template Order
+            ver:
+                The Version Number
+            m_len:
+                The length of payload
+            seq_no:
+                The Sequence number
+            time:
+                The time at which the message was created
+            set_id:
+                The ID determines the type set
+            set_len:
+                The length of this set
+
+            """
+            ver = join(msg=split_msg, offset=self.offset, hex=8),
+            self.offset += header_offset_check('ver')
+            m_len = join(msg=split_msg, offset=self.offset, hex=uint16),
+            self.offset += header_offset_check('m_len')
+            seq_no = join(msg=split_msg, offset=self.offset, hex=uint32),
+            self.offset += header_offset_check('seq_no')
+            time = join(msg=split_msg, offset=self.offset, hex=uint32),
+            self.offset += header_offset_check('time')
+            set_id = join(msg=split_msg, offset=self.offset, hex=uint16),
+            self.offset += header_offset_check('set_id')
+            set_len = join(msg=split_msg, offset=self.offset, hex=uint16),
+            self.offset += header_offset_check('set_len')
+
+        # Decode the template if ID is 1
         if Header.set_id[0] == '0001':
             template_len = int(''.join(Header.set_len[0]), 16) - 10
 
@@ -362,7 +519,6 @@ class RAN(app_manager.RyuApp):
                     template.append(
                         int(join(msg=split_msg, offset=self.offset, hex=uint16), 16))
                     self.offset += uint16
-                # print(template)
 
         # MSG Parser
         msg_id = int(join(msg=split_msg, offset=self.offset, hex=uint16), 16)
@@ -598,9 +754,9 @@ class RAN(app_manager.RyuApp):
             if meter_mod is not None:
                 datapath.send_msg(meter_mod)
         # Send flow
-        self.add_flow_meter_13(datapath, load)
+        self.add_flow_meter(datapath, load)
 
-    def add_flow_meter_13(self, datapath, load):
+    def add_flow_meter(self, datapath, load):
         """Add flow when meter exists"""
         parser = datapath.ofproto_parser
         ofproto = datapath.ofproto
