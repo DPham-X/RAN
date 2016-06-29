@@ -1,7 +1,7 @@
 """Ryu Action Node Revised - RYU based application
 
 Run:
-    ryu-manager ./ran_revised.py
+    ryu-manager ./ran_v400.py
 
 - Compatible with ryu.app.simple_switch and ryu.app.rest_router running on Open
     vSwitch OpenFlow Table 2
