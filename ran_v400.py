@@ -936,7 +936,7 @@ class RAN(app_manager.RyuApp):
         Returns
         -------
         cur_time: str
-            The current time
+            The current time in unix str
 
         """
         cur_time = str(datetime.now())
