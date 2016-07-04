@@ -8,15 +8,13 @@ OpenFlow 1.4.
 
 Ryu can be downloaded from Github.
 
-pip install ryu
+    pip install ryu
 
 or
 
-git clone git://github.com/osrg/ryu.git
-
-cd ryu
-
-python ./setup.py install
+    git clone git://github.com/osrg/ryu.git
+    cd ryu
+    python ./setup.py install
 
 ### Prerequisites
 
@@ -25,15 +23,15 @@ python ./setup.py install
     python-webob
     python-paramiko
 
-sudo apt-get update
+`sudo apt-get update`
 
-sudo apt-get install python-eventlet python-routes python-webob python-paramiko
+`sudo apt-get install python-eventlet python-routes python-webob python-paramiko`
 
 ### Updating Ryu
 
-cd ryu
+`cd ryu`
 
-git pull
+`git pull`
 
 ### Running Ryu and the RAN
-ryu-manager ./ran_v400.py
+`ryu-manager ./ran_v400.py`
