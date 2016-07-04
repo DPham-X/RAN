@@ -8,9 +8,15 @@ OpenFlow 1.4.
 
 Ryu can be downloaded from Github.
 
+pip install ryu
+
+or
+
 git clone git://github.com/osrg/ryu.git
 
 cd ryu
+
+python ./setup.py install
 
 ### Prerequisites
 
