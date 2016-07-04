@@ -29,9 +29,9 @@ or
 
 ### Updating Ryu
 
-`$cd ryu`
-
-`$ git pull`
+    $ cd ryu
+    $ git pull
 
 ### Running Ryu and the RAN
-`$ ryu-manager ./ran_v400.py`
+
+    $ ryu-manager ./ran_v400.py
