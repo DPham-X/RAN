@@ -39,13 +39,13 @@ from ryu.ofproto import ofproto_v1_4
 from ryu.ofproto import ofproto_v1_5
 
 # Import RAN required libraries
-from .src.diffuse_parse import ipv4_to_int
-from .src.diffuse_parse import proto_check
-from .src.packet_process import header_offset_check
-from .src.packet_process import join
-from .src.packet_process import msg_check
-from .src.packet_process import template_check
-from .src.ver_check import version_check
+from src.diffuse_parse import ipv4_to_int
+from src.diffuse_parse import proto_check
+from src.packet_process import header_offset_check
+from src.packet_process import join
+from src.packet_process import msg_check
+from src.packet_process import template_check
+from src.ver_check import version_check
 
 
 class RAN(app_manager.RyuApp):
@@ -572,12 +572,12 @@ class RAN(app_manager.RyuApp):
         self.config = ConfigParser.ConfigParser()
 
         # Read the conf.ini data
-        try:
-            print('Input location of configuration file:')
-            self.config.read(input())
-        except (ValueError, SyntaxError):
-            self.config.read('/home/sdn/RAN/conf.ini')
-            self.logger.info("using: /home/sdn/RAN/conf.ini")
+        #try:
+        #   print('Input location of configuration file:')
+        #    self.config.read(input())
+        #except (ValueError, SyntaxError):
+        self.config.read('/home/sdn/RAN/conf.ini')
+        self.logger.info("using: /home/sdn/RAN/conf.ini")
 
         # Get class names imported
         class_name = self.config.sections()
