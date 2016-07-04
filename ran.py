@@ -1,7 +1,7 @@
 """Ryu Action Node Revised - RYU based application
 
 Run:
-    ryu-manager ./ran_v400.py
+    ryu-manager ./ran.py
 
 - Compatible with ryu.app.simple_switch and ryu.app.rest_router running on Open
     vSwitch OpenFlow Table 2
@@ -40,9 +40,6 @@ from ryu.ofproto import ofproto_v1_5
 
 
 # Import RAN required libraries
-#import sys
-#sys.path.append("..")
-
 from lib.diffuse_parse import ipv4_to_int
 from lib.diffuse_parse import proto_check
 from lib.packet_process import header_offset_check
@@ -576,12 +573,12 @@ class RAN(app_manager.RyuApp):
         self.config = ConfigParser.ConfigParser()
 
         # Read the conf.ini data
-        #try:
-        #   print('Input location of configuration file:')
-        #    self.config.read(input())
-        #except (ValueError, SyntaxError):
-        self.config.read('/home/sdn/RAN/conf.ini')
-        self.logger.info("using: /home/sdn/RAN/conf.ini")
+        try:
+            print('Input location of configuration file:')
+            self.config.read(input())
+        except (ValueError, SyntaxError):
+            self.config.read('/home/sdn/RAN/conf.ini')
+            self.logger.info("using: /home/sdn/RAN/conf.ini")
 
         # Get class names imported
         class_name = self.config.sections()
