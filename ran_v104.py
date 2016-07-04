@@ -39,13 +39,13 @@ from ryu.ofproto import ofproto_v1_4
 from ryu.ofproto import ofproto_v1_5
 
 # Import RAN required libraries
-from src.diffuse_parse import ipv4_to_int
-from src.diffuse_parse import proto_check
-from src.packet_process import header_offset_check
-from src.packet_process import join
-from src.packet_process import msg_check
-from src.packet_process import template_check
-from src.ver_check import version_check
+from lib.diffuse_parse import ipv4_to_int
+from lib.diffuse_parse import proto_check
+from lib.packet_process import header_offset_check
+from lib.packet_process import join
+from lib.packet_process import msg_check
+from lib.packet_process import template_check
+from lib.ver_check import version_check
 
 
 class RAN(app_manager.RyuApp):
