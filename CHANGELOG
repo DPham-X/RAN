@@ -1,20 +1,20 @@
-# RAN_v310
+# RAN_v1.00
 -RAN separated from simple_switch_13
 -RAN only parses DIFFUSE messages and sends any table miss to table 1
 -Requires simple switch for full functionality
 -Only works on OF1.3
 
-# RAN_v320
+# RAN_v1.01
 -RAN can parse RAN messages in OF1.5
 -Still cant do metering
 
-# RAN_v324
+# RAN_v1.02
 -Changed how the RAN parses FCN messages for better multi rule support in
 the future
 
-# RAN_v325
+# RAN_v1.03
 -Received FCN messages applied to all connected controllers.
 
-# RAN_v400
+# RAN_v1.04
 -Supports OF1.3 and OF1.4
 -Supports multimessage without metering
