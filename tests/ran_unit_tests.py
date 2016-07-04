@@ -17,10 +17,10 @@ from ryu.ofproto import ofproto_v1_4
 from ryu.ofproto import ofproto_v1_5
 
 import ran_v400
-from src.packet_process import join
-from src.ver_check import version_check
-from src.diffuse_parse import proto_check
-from src.diffuse_parse import ipv4_to_int
+from lib.packet_process import join
+from lib.ver_check import version_check
+from lib.diffuse_parse import proto_check
+from lib.diffuse_parse import ipv4_to_int
 
 
 class VersionCheckTest(unittest.TestCase):
