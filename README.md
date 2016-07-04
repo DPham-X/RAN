@@ -23,7 +23,7 @@ or
     python-webob
     python-paramiko
 
-`$sudo apt-get update`
+`$ sudo apt-get update`
 
 `$ sudo apt-get install python-eventlet python-routes python-webob python-paramiko`
 
