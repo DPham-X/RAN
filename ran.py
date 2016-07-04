@@ -12,11 +12,10 @@ Run:
 - Supports Multiple Switches
 - Support Multi FCN/CN Packets
 
-Date: 29/06/16
 
 """
 
-# Import common internal libraries
+# Import internal libraries
 import binascii
 import socket
 import struct
@@ -139,8 +138,7 @@ class RAN(app_manager.RyuApp):
         # Initialise the socket to listen on host and port using TCP
         sock = self.socket_tcp()
         self.logger.info("%s RAN initiated", self.time_now())
-        alive = True
-        while alive:
+        while True:
             # Receive incoming messages
             received_msg, msg_count = self.socket_receive(sock=sock)
 
@@ -573,12 +571,12 @@ class RAN(app_manager.RyuApp):
         self.config = ConfigParser.ConfigParser()
 
         # Read the conf.ini data
-        try:
-            print('Input location of configuration file:')
-            self.config.read(input())
-        except (ValueError, SyntaxError):
-            self.config.read('/home/sdn/RAN/conf.ini')
-            self.logger.info("using: /home/sdn/RAN/conf.ini")
+        #try:
+        #    print('Input location of configuration file:')
+        #    self.config.read(input())
+        #except (ValueError, SyntaxError):
+        self.config.read('/home/sdn/RAN/conf.ini')
+        self.logger.info("using: /home/sdn/RAN/conf.ini")
 
         # Get class names imported
         class_name = self.config.sections()

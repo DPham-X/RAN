@@ -156,27 +156,18 @@ class RanTest(unittest.TestCase):
 
         pass
 
-    def test_something(self):
+    def test_tcp_socket_valid_socket(self):
         self = RAN()
-        RAN.parser_initialiser(self)
-        pass
+        s = RAN.socket_tcp(self)
+        if s:
+            pass
 
-    def test_tcp_socket_is_running(self):
+    def test_1tcp_socket_valid(self):
         self = RAN()
-        t1 = threading.Thread(target=RAN.parser_initialiser(self))
-        t1.start()
-        t1.join(5)
-        import socket
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect(('127.0.0.1', 5000))
-        RAN.parser_initialiser.alive = False
-        pass
-
-    #def test_conf_parser(self):
-    #    x = RAN.conf_class_check(RAN, ['myclass1'])
-    #    print(x)
-    #    if x:
-    #        pass
+        s = RAN.socket_tcp(self)
+        msg, msg_count = RAN.socket_receive(self, sock=s)
+        print(msg)
+        print(msg_count)
 
     def test_time_now(self):
         x = RAN.time_now()
