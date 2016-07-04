@@ -38,7 +38,11 @@ from ryu.ofproto import ofproto_v1_3
 from ryu.ofproto import ofproto_v1_4
 from ryu.ofproto import ofproto_v1_5
 
+
 # Import RAN required libraries
+#import sys
+#sys.path.append("..")
+
 from lib.diffuse_parse import ipv4_to_int
 from lib.diffuse_parse import proto_check
 from lib.packet_process import header_offset_check
@@ -138,8 +142,8 @@ class RAN(app_manager.RyuApp):
         # Initialise the socket to listen on host and port using TCP
         sock = self.socket_tcp()
         self.logger.info("%s RAN initiated", self.time_now())
-
-        while True:
+        alive = True
+        while alive:
             # Receive incoming messages
             received_msg, msg_count = self.socket_receive(sock=sock)
 
@@ -861,8 +865,8 @@ class RAN(app_manager.RyuApp):
 
         Parameters
         ----------
-        parameter_set: dict
-            The dictionary contains all the parsed action parameters for a set
+        parameter_set:
+            The dictionary contains the parsed action parameters for a set
         max_ver: str
             Highest supported version of the switch
 
@@ -872,6 +876,7 @@ class RAN(app_manager.RyuApp):
             Contains the 5-tuple information for match use
 
         """
+
         match_parameters = []
 
         # Check if protocol is either TCP or UDP
@@ -935,9 +940,9 @@ class RAN(app_manager.RyuApp):
 
         Returns
         -------
-        cur_time: str
-            The current time in unix str
+        cur_time: str in format DD-MM-YYYY HH:MM:SS
+            The current time in string
 
         """
-        cur_time = str(datetime.now())
+        cur_time = str(datetime.now().strftime("%d-%m-%Y %H:%M:%S"))
         return cur_time

@@ -5,6 +5,7 @@
 """
 
 import unittest
+import threading
 
 from ryu.base import app_manager
 from ryu.controller import ofp_event
@@ -16,11 +17,14 @@ from ryu.ofproto import ofproto_v1_3
 from ryu.ofproto import ofproto_v1_4
 from ryu.ofproto import ofproto_v1_5
 
-import ran_v400
 from lib.packet_process import join
 from lib.ver_check import version_check
 from lib.diffuse_parse import proto_check
 from lib.diffuse_parse import ipv4_to_int
+
+import sys
+sys.path.append("..")
+from ran import RAN
 
 
 class VersionCheckTest(unittest.TestCase):
@@ -121,18 +125,64 @@ class DiffuseParserTest(unittest.TestCase):
 
 class RanTest(unittest.TestCase):
 
-    def test_tcp_socket_is_running(self):
+    def setUp(self):
+        pass
 
+    def tearDown(self):
+        pass
+
+    def test_message_converter_udp(self):
+        max_ver = "OF13"
+        parameter_set = {'PROTO': '11',
+                         'SRC_PORT': '0001',
+                         'DST_PORT': '0001',
+                         'SRC_IPV4': '01010101',
+                         'DST_IPV4': '01010101'
+                         }
+        x = RAN.msg_converter(parameter_set, max_ver)
+        print(x)
+        if ('eth_type', 2048) not in x:
+            self.fail('Wrong eth_type')
+        if ('ip_proto', 17) not in x:
+            self.fail('Wrong ip_proto')
+        if ('udp_src', 1) not in x:
+            self.fail('Wrong udp_src')
+        if ('udp_dst', 1) not in x:
+            self.fail('Wrong udp_dst')
+        if ('ipv4_src', 16843009) not in x:
+            self.fail('wrong ipv4_src')
+        if ('ipv4_dst', 16843009) not in x:
+            self.fail('wrong ipv4_dst')
+
+        pass
+
+    def test_something(self):
+        self = RAN()
+        RAN.parser_initialiser(self)
+        pass
+
+    def test_tcp_socket_is_running(self):
+        self = RAN()
+        t1 = threading.Thread(target=RAN.parser_initialiser(self))
+        t1.start()
+        t1.join(5)
         import socket
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            s.connect(('127.0.0.1', 5000))
-        except Exception as e:
-            raise Exception('Couldn\'t connect to socket', e)
-            self.assertTrue(False)
-        else:
-            self.assertTrue(True)
+        s.connect(('127.0.0.1', 5000))
+        RAN.parser_initialiser.alive = False
+        pass
 
+    #def test_conf_parser(self):
+    #    x = RAN.conf_class_check(RAN, ['myclass1'])
+    #    print(x)
+    #    if x:
+    #        pass
+
+    def test_time_now(self):
+        x = RAN.time_now()
+        print(x)
+        pass
 
 if __name__ == '__main__':
+    threads = 2
     unittest.main()
