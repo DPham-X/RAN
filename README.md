@@ -32,6 +32,6 @@ or
     $ cd ryu
     $ git pull
 
-### Running Ryu and the RAN
+### Running Ryu with the RAN
 
     $ ryu-manager ./ran_v400.py
