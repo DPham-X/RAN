@@ -1,4 +1,4 @@
-"""Ryu Action Node Revised - RYU based application
+"""Ryu Action Node - RYU based application
 
 Run:
     ryu-manager ./ran.py
@@ -49,7 +49,7 @@ from lib.ver_check import version_check
 
 
 class RAN(app_manager.RyuApp):
-    """Ryu Action Node v2 Northbound Application
+    """Ryu Action Node Northbound Application
         - Parses 'Classifier Node' and 'Fake Classifier Node' based packets
         using the 'Remote Actions Protocol' (RAP).
         - Implements class based prioritisation set by a configuration file
@@ -68,14 +68,14 @@ class RAN(app_manager.RyuApp):
     priority = None
     queue = 0
     rate = 0
-    type_ = 0
+    _type = 0
     timeout = None
 
     def __init__(self, *args, **kwargs):
         super(RAN, self).__init__(*args, **kwargs)
 
-        # Contains the versions for each connected SDN switch
-        self.ofp_ver = {}
+        # The supported RAN OpenFlow versions
+        self.ofp_ver = ['OF13', 'OF14', 'OF15']
 
         # Contains the datapaths for each connected SDN switch
         self.datapaths = {}
@@ -119,7 +119,7 @@ class RAN(app_manager.RyuApp):
         priority = 0  # Miss flows are the last to match
 
         # Create on flow-miss go to controller for compatible OpenFlow versions
-        if ofp_ver is not 0:
+        if ofp_ver != 0:
             self.add_flow_miss(datapath=datapath,
                                priority=priority,
                                table_id=table_id)
@@ -146,7 +146,7 @@ class RAN(app_manager.RyuApp):
             try:
                 self.parser_action(received_msg, msg_count)
             except RuntimeError:
-                print("Error: New Switch was added, trying again")
+                self.logger.error("Error: New Switch was added, trying again")
                 self.parser_action(received_msg, msg_count)
 
     def socket_tcp(self):
@@ -169,8 +169,8 @@ class RAN(app_manager.RyuApp):
         try:
             sock.bind((host, port))
         except socket.error:
-            self.logger.debug('%s Binding error', self.time_now())
-            self.logger.debug(
+            self.logger.error('%s Binding error', self.time_now())
+            self.logger.error(
                 '%s Socket in TIME-WAIT state, wait until socket is closed',
                 self.time_now())
             exit(1)
@@ -181,7 +181,7 @@ class RAN(app_manager.RyuApp):
         try:
             sock.listen(1)
         except socket.error:
-            self.logger.debug(
+            self.logger.error(
                 '%s Cannot listen on port %d', str(
                     datetime.now()), port)
         else:
@@ -235,7 +235,7 @@ class RAN(app_manager.RyuApp):
                 msg_type = int(parameter_set['MSG_TYPE'], 16)
 
                 # Action
-                if max_ver in ['OF13', 'OF14', 'OF15']:
+                if max_ver in self.ofp_ver:
                     # Add flows
                     if msg_type == 0:
                         action = None
@@ -252,7 +252,7 @@ class RAN(app_manager.RyuApp):
                             self.queue = config['queue']
                         else:
                             self.queue = None
-                        self.type_ = config['type']
+                        self._type = config['type']
                         self.meter_id = config['meter_id']
                         self.rate = config['rate']
                         self.dscp_no = config['dscp_no']
@@ -502,7 +502,7 @@ class RAN(app_manager.RyuApp):
                                     table_id=0)
             datapath.send_msg(mod)
         except RuntimeError:
-            self.logger.debug(
+            self.logger.error(
                 "%s Could not send flow to switch \'%d\'",
                 self.time_now(), datapath.id)
         else:
@@ -529,7 +529,7 @@ class RAN(app_manager.RyuApp):
         # Create match from FCN/CN parameters
         setattr(match, '_fields2', load)
 
-        # Send delete flow using the match
+        # Serialise and send delete flow using the match
         try:
             mod = parser.OFPFlowMod(
                 datapath=datapath,
@@ -548,7 +548,7 @@ class RAN(app_manager.RyuApp):
                 instructions=[])
             datapath.send_msg(mod)
         except RuntimeError:
-            self.logger.debug(
+            self.logger.error(
                 "%s Could not send flow deletion to switch \'%d\'",
                 self.time_now(),
                 datapath.id)
@@ -571,12 +571,12 @@ class RAN(app_manager.RyuApp):
         self.config = ConfigParser.ConfigParser()
 
         # Read the conf.ini data
-        #try:
-        #    print('Input location of configuration file:')
-        #    self.config.read(input())
-        #except (ValueError, SyntaxError):
-        self.config.read('/home/sdn/RAN/conf.ini')
-        self.logger.info("using: /home/sdn/RAN/conf.ini")
+        try:
+            print('Input location of configuration file:')
+            self.config.read(input())
+        except (ValueError, SyntaxError):
+            self.config.read('./conf.ini')
+            self.logger.info("using: ./conf.ini")
 
         # Get class names imported
         class_name = self.config.sections()
@@ -607,11 +607,11 @@ class RAN(app_manager.RyuApp):
                 if csm_d[option] == -1:
                     self.logger.debug('skip: %s', option)
             except ConfigParser.Error:
-                print("exception on %s!" % option)
+                self.logger.error("exception on %s!", option)
                 csm_d[option] = None
         return csm_d
 
-    def conf_class_check(self, class_in):
+    def conf_class_check(self, class_in='default'):
         """Check incoming RAP messages against conf.ini and get the required
         configuration
 
@@ -626,33 +626,34 @@ class RAN(app_manager.RyuApp):
             class
 
         """
+
         # Check if class name exists, get config parameters
         if class_in in self.class_name:
             class_name = class_in
-            csm = self.conf_section_map(class_in)
-            queue = csm.get('queue')  # queue number
-            type_ = csm.get('type')
-            meter_id = csm.get('meterid')
-            rate = csm.get('rate')
-            dscp_no = csm.get('dscp')
-
         # Get 'default' config parameters if no match
         else:
             class_name = "default"
-            csm = self.conf_section_map('default')
-            queue = csm.get('queue')  # queue number
-            type_ = csm.get('type')
-            meter_id = csm.get('meterid')
-            rate = csm.get('rate')
-            dscp_no = csm.get('dscp')
+
         self.logger.info(
             "%s Class Name: %s", self.time_now(), class_name)
 
-        return dict(queue=queue,
-                    type=type_,
-                    meter_id=meter_id,
-                    rate=rate,
-                    dscp_no=dscp_no)
+        try:
+            csm = self.conf_section_map(class_name)
+            queue = csm.get('queue')  # queue number
+            _type = csm.get('type')
+            meter_id = csm.get('meterid')
+            rate = csm.get('rate')
+            dscp_no = csm.get('dscp')
+
+            return dict(queue=queue,
+                        type=_type,
+                        meter_id=meter_id,
+                        rate=rate,
+                        dscp_no=dscp_no)
+        except Exception:
+            self.logger.error("%s Error importing class configurations",
+                              self.time_now())
+            return None
 
     def create_meter(self, datapath, load):
         """Create meter and SDN flow rules
@@ -671,7 +672,7 @@ class RAN(app_manager.RyuApp):
 
         # Get meter values to be used
         meter_id = int(self.meter_id)
-        type_ = self.type_
+        type_ = self._type
         rate = int(self.rate)
         dscp_no = int(self.dscp_no)
 
@@ -800,12 +801,12 @@ class RAN(app_manager.RyuApp):
 
     @set_ev_cls(ofp_event.EventOFPErrorMsg, MAIN_DISPATCHER)
     def meter_error_handler(self, event):
-        """Prints an error if meter already exists from a SDN switch
+        """Prints an error if meter already exists in an SDN switch
 
         """
 
         if event.msg.type == 12:
-            self.logger.info("%s Meter already exists, "
+            self.logger.error("%s Meter already exists, "
                              "existing meter was used", self.time_now())
 
     @staticmethod
@@ -839,20 +840,19 @@ class RAN(app_manager.RyuApp):
             ofproto.OFPIT_APPLY_ACTIONS, actions)]
 
         # Package Flow modification add messages
-        mod1 = parser.OFPFlowMod(datapath=datapath,
-                                 priority=priority,
-                                 match=match,
-                                 instructions=inst_apply_action,
-                                 table_id=0)
-        mod2 = parser.OFPFlowMod(datapath=datapath,
-                                 priority=priority + 1,
-                                 match=match,
-                                 instructions=inst_goto_next,
-                                 table_id=0)
-
+        flow_miss_mod = parser.OFPFlowMod(datapath=datapath,
+                                          priority=priority,
+                                          match=match,
+                                          instructions=inst_apply_action,
+                                          table_id=0)
+        next_table_mod = parser.OFPFlowMod(datapath=datapath,
+                                           priority=priority + 1,
+                                           match=match,
+                                           instructions=inst_goto_next,
+                                           table_id=0)
         # Send messages to SDN Switch
-        datapath.send_msg(mod1)
-        datapath.send_msg(mod2)
+        datapath.send_msg(flow_miss_mod)
+        datapath.send_msg(next_table_mod)
 
     @staticmethod
     def msg_converter(parameter_set, max_ver):
@@ -862,7 +862,7 @@ class RAN(app_manager.RyuApp):
         ----------
         parameter_set:
             The dictionary contains the parsed action parameters for a set
-        max_ver: str
+        max_ver: str 'OFXX'
             Highest supported version of the switch
 
         Returns
@@ -924,7 +924,7 @@ class RAN(app_manager.RyuApp):
                     match_parameters.extend([('udp_dst', udp_dst)])
 
             # If the protocol is neither TCP/UDP, parse protocol number
-            elif int(parameter_set['PROTO'], 16) is not 0:
+            elif int(parameter_set['PROTO'], 16) != 0:
                 ip_proto = int(parameter_set['PROTO'], 16)
                 match_parameters.extend([('ip_proto', ip_proto)])
         return match_parameters
