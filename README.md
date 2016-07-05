@@ -32,6 +32,11 @@ or
     $ cd ryu
     $ git pull
 
+### Installing the RAN
+
+    $ git clone https://github.com/XykotiC/RAN.git
+   
 ### Running Ryu with the RAN
 
+    $ cd RYU
     $ ryu-manager ./ran_v400.py
