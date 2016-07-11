@@ -38,5 +38,5 @@ or
    
 ### Running Ryu with the RAN
 
-    $ cd RYU
+    $ cd RAN
     $ ryu-manager ./ran_v400.py
