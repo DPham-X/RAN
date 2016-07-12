@@ -12,8 +12,9 @@ Features
 Running Ryu with the RAN
 ------------------------
 
-  $ cd RAN
-  $ ryu-manager ./ran.py
+    $ cd RAN
+    $ ryu-manager 
+    ./ran.py
   
 Installing the RAN
 ------------------
@@ -48,7 +49,8 @@ or
 
 Updating Ryu
 ------------
-    $ cd ryu
-    $ git pull
+
+   $ cd ryu
+   $ git pull
 
 
