@@ -1,3 +1,32 @@
+# Copyright (c) 2016, Centre for Advanced Internet Architectures,
+# Swinburne University of Technology. All rights reserved.
+#
+# Author: Dzuy Pham (dhpham@swin.edu.au)
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice, this
+#    list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+# ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+# The views and conclusions contained in the software and documentation are those
+# of the authors and should not be interpreted as representing official policies,
+# either expressed or implied, of the FreeBSD Project.
+
 """Unit Test for the Ryu Action Node
 
 01/07/16
@@ -17,15 +46,16 @@ from ryu.ofproto import ofproto_v1_3
 from ryu.ofproto import ofproto_v1_4
 from ryu.ofproto import ofproto_v1_5
 
+import sys
+sys.path.append("..")
+
 from lib.packet_process import join
 from lib.ver_check import version_check
 from lib.diffuse_parse import proto_check
 from lib.diffuse_parse import ipv4_to_int
 
-import sys
-sys.path.append("..")
-from ran import RAN
-
+from ran import *
+from unittest.mock import patch, Mock
 
 class VersionCheckTest(unittest.TestCase):
     def setUp(self):
@@ -126,6 +156,7 @@ class DiffuseParserTest(unittest.TestCase):
 class RanTest(unittest.TestCase):
 
     def setUp(self):
+        self.ran = RAN()
         pass
 
     def tearDown(self):
@@ -156,24 +187,22 @@ class RanTest(unittest.TestCase):
 
         pass
 
-    def test_tcp_socket_valid_socket(self):
-        self = RAN()
-        s = RAN.socket_tcp(self)
-        if s:
-            pass
+    def test_socket_tcp(self):
+        ran = RAN(app_manager.RyuApp)
+        sock = ran.socket_tcp()
+        IP = '0.0.0.0'
+        PORT = 5000
 
-    def test_1tcp_socket_valid(self):
-        self = RAN()
-        s = RAN.socket_tcp(self)
-        msg, msg_count = RAN.socket_receive(self, sock=s)
-        print(msg)
-        print(msg_count)
+        if IP and PORT not in sock:
+            self.fail('Wrong Address')
+        if sock.proto != 0:
+            self.fail('Wrong protocol')
+        pass
+
 
     def test_time_now(self):
         x = RAN.time_now()
-        print(x)
         pass
 
 if __name__ == '__main__':
-    threads = 2
     unittest.main()

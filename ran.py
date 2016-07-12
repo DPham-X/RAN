@@ -1,3 +1,32 @@
+# Copyright (c) 2016, Centre for Advanced Internet Architectures,
+# Swinburne University of Technology. All rights reserved.
+#
+# Author: Dzuy Pham (dhpham@swin.edu.au)
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice, this
+#    list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+# ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+# The views and conclusions contained in the software and documentation are those
+# of the authors and should not be interpreted as representing official policies,
+# either expressed or implied, of the FreeBSD Project.
+
 """Ryu Action Node - RYU based application
 
 Run:
@@ -12,18 +41,17 @@ Run:
 - Supports Multiple Switches
 - Support Multi FCN/CN Packets
 
-
 """
 
 # Import internal libraries
-import binascii
-import socket
-import struct
-import copy
 try:
     import configparser as ConfigParser
 except ImportError:
     import ConfigParser
+import binascii
+import socket
+import struct
+import copy
 from datetime import datetime
 
 # Import RYU required libraries
@@ -36,7 +64,6 @@ from ryu.lib import hub
 from ryu.ofproto import ofproto_v1_3
 from ryu.ofproto import ofproto_v1_4
 from ryu.ofproto import ofproto_v1_5
-
 
 # Import RAN required libraries
 from lib.diffuse_parse import ipv4_to_int
@@ -134,7 +161,6 @@ class RAN(app_manager.RyuApp):
         Nodes' RAP Protocol messages
 
         """
-
         # Initialise the socket to listen on host and port using TCP
         sock = self.socket_tcp()
         self.logger.info("%s RAN initiated", self.time_now())
@@ -213,7 +239,8 @@ class RAN(app_manager.RyuApp):
         """
         for d_n, datapath_key in enumerate(self.datapaths):
             for msg_index in range(0, msg_count, 1):
-                # Get current set of action parameters from the received message
+                # Get current set of action parameters from the received
+                # message
                 parameter_set = received_msg[msg_index]
 
                 # Import most recent 'Datapath' of switch and their functions
@@ -435,9 +462,19 @@ class RAN(app_manager.RyuApp):
                     self.offset += uint16
 
         # Get next set id
-        msg_id = int(join(msg=split_msg, offset=self.offset, hex_len=uint16), 16)
+        msg_id = int(
+            join(
+                msg=split_msg,
+                offset=self.offset,
+                hex_len=uint16),
+            16)
         self.offset += uint16
-        msg_len = int(join(msg=split_msg, offset=self.offset, hex_len=uint16), 16)
+        msg_len = int(
+            join(
+                msg=split_msg,
+                offset=self.offset,
+                hex_len=uint16),
+            16)
         self.offset += uint16
 
         # Parse through parameter set using the template ID
@@ -571,12 +608,12 @@ class RAN(app_manager.RyuApp):
         self.config = ConfigParser.ConfigParser()
 
         # Read the conf.ini data
-        try:
-            print('Input location of configuration file:')
-            self.config.read(input())
-        except (ValueError, SyntaxError):
-            self.config.read('./conf.ini')
-            self.logger.info("using: ./conf.ini")
+        # try:
+        #    print('Input location of configuration file:')
+        #    self.config.read(input())
+        # except (ValueError, SyntaxError):
+        self.config.read('./conf.ini')
+        #    self.logger.info("using: ./conf.ini")
 
         # Get class names imported
         class_name = self.config.sections()
@@ -804,10 +841,9 @@ class RAN(app_manager.RyuApp):
         """Prints an error if meter already exists in an SDN switch
 
         """
-
         if event.msg.type == 12:
             self.logger.error("%s Meter already exists, "
-                             "existing meter was used", self.time_now())
+                              "existing meter was used", self.time_now())
 
     @staticmethod
     def add_flow_miss(datapath, priority, table_id):
