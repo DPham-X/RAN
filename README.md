@@ -1,9 +1,27 @@
-$RAN_v1.04
+RAN v1.04
 ==========
-This is the RYU ACTION NODE which currently supports OpenFlow 1.3 and
-OpenFlow 1.4.
+The Ryu Action Node (RAN) is a prioritisation tool for implementing Remote Action Protocol (RAP) messages on the SDN network.
 
-## Installing RYU
+Features
+--------
+
+- Supports OpenFlow 1.3, 1.4
+- Supports Multi Message RAP
+- Supports Multi Version SDN switches
+
+Running Ryu with the RAN
+------------------------
+
+  $ cd RAN
+  $ ryu-manager ./ran.py
+  
+Installing the RAN
+------------------
+
+  $ git clone https://github.com/XykotiC/RAN.git
+   
+Installing RYU
+--------------
 
 ### Download and build
 
@@ -28,16 +46,9 @@ or
 
 `$ sudo apt-get install python-eventlet python-routes python-webob python-paramiko`
 
-### Updating Ryu
-
+Updating Ryu
+------------
     $ cd ryu
     $ git pull
 
-### Installing the RAN
 
-    $ git clone https://github.com/XykotiC/RAN.git
-   
-### Running Ryu with the RAN
-
-    $ cd RAN
-    $ ryu-manager ./ran_v400.py
