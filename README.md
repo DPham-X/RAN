@@ -1,4 +1,5 @@
-# RAN_v1.04
+$RAN_v1.04
+==========
 This is the RYU ACTION NODE which currently supports OpenFlow 1.3 and
 OpenFlow 1.4.
 
