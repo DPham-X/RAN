@@ -18,12 +18,13 @@ Running Ryu with the RAN
 Installing the RAN
 ------------------
 
-  $ git clone https://github.com/XykotiC/RAN.git
+    $ git clone https://github.com/XykotiC/RAN.git
    
 Installing RYU
 --------------
 
-### Download and build
+Download and build
+++++++++++++++++++
 
 Ryu can be downloaded from Github.
 
@@ -35,16 +36,18 @@ or
     $ cd ryu
     $ python ./setup.py install
 
-### Prerequisites
+Prerequisites
++++++++++++++
 
     python-eventlet
     python-routes
     python-webob
     python-paramiko
 
-`$ sudo apt-get update`
+Installing Prerequisites
 
-`$ sudo apt-get install python-eventlet python-routes python-webob python-paramiko`
+    $ sudo apt-get update`
+    $ sudo apt-get install python-eventlet python-routes python-webob python-paramiko`
 
 Updating Ryu
 ------------
