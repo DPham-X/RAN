@@ -87,6 +87,7 @@ def template_check(template_id):
     ----------
     template_id: hex str of template id
         The template id retrieved from the parsed RAP packet
+
     Returns
     -------
        The corresponding template name associated with the hex value
