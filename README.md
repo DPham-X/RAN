@@ -45,7 +45,6 @@ From the RYU web page:
 
 
 Download and build
-++++++++++++++++++
 
 Ryu can be downloaded from pip or Github.
 
@@ -58,7 +57,6 @@ or
     $ python ./setup.py install
 
 Prerequisites
-+++++++++++++
 
     python-eventlet
     python-routes
