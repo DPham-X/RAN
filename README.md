@@ -10,11 +10,13 @@ This README gives a brief overview on how to install and setup the RAN using the
 Example config files are provided.
 
 For more information regarding the RAN and FCN refer to the technical report here:
-http://caia.swin.edu.au/reports/160429A/CAIA-TR-160429A.pdf
-http://caia.swin.edu.au/reports/160422A/CAIA-TR-160422A.pdf
+
+    http://caia.swin.edu.au/reports/160429A/CAIA-TR-160429A.pdf
+    http://caia.swin.edu.au/reports/160422A/CAIA-TR-160422A.pdf
 
 For an updated RAN and FCN check:
-https://github.com/XykotiC/RAN/
+
+    https://github.com/XykotiC/RAN/
 
 NEW FEATURES IN THIS VERSION
 ----------------------------
@@ -37,8 +39,9 @@ RUNNING RYU WITH THE RAN
    
 Installing RYU
 --------------
-From the RYU webpage
-https://osrg.github.io/ryu/
+From the RYU web page:
+
+    https://osrg.github.io/ryu/
 
 
 Download and build
