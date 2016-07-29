@@ -27,6 +27,7 @@
 # of the authors and should not be interpreted as representing official policies,
 # either expressed or implied, of the FreeBSD Project.
 
+from datetime import datetime
 # For Packet Process
 UINT32 = 4
 UINT16 = 2
@@ -151,3 +152,16 @@ def msg_check(offset, template):
         'ACT_FLAG': UINT16,
         'ACT_PAR': UINT8 * template[-1],
     }.get(offset, 0)
+
+
+def time_now():
+    """Gives the current Time
+
+    Returns
+    -------
+    cur_time: str in format DD-MM-YYYY HH:MM:SS
+        The current time in string
+
+    """
+    cur_time = str(datetime.now().strftime("%d-%m-%Y %H:%M:%S"))
+    return cur_time
