@@ -52,9 +52,9 @@ try:
 except ImportError:
     import ConfigParser
 import binascii
+import copy
 import socket
 import struct
-import copy
 from datetime import datetime
 
 # Import RYU required libraries
@@ -74,8 +74,8 @@ from lib.packet_process import header_offset_check
 from lib.packet_process import join
 from lib.packet_process import msg_check
 from lib.packet_process import template_check
-from lib.ver_check import version_check
 from lib.packet_process import time_now
+from lib.ver_check import version_check
 
 
 class RAN(app_manager.RyuApp):
@@ -867,30 +867,18 @@ class RAN(app_manager.RyuApp):
         return {
             'T_ID': msg_id,
             'T_FLAG': msg_len,
-            'CLASS_NAME': join(msg=split_msg,
-                               offset=self.offset,
-                               hex_len=uint64),
+            'CLASS_NAME': join(msg=split_msg, offset=self.offset, hex_len=uint64),
             'MSG_TYPE': join(msg=split_msg, offset=self.offset, hex_len=uint8),
             'SRC_IPV4': join(msg=split_msg, offset=self.offset, hex_len=uint32),
             'DST_IPV4': join(msg=split_msg, offset=self.offset, hex_len=uint32),
             'SRC_PORT': join(msg=split_msg, offset=self.offset, hex_len=uint16),
             'DST_PORT': join(msg=split_msg, offset=self.offset, hex_len=uint16),
             'PROTO': join(msg=split_msg, offset=self.offset, hex_len=uint8),
-            'PKT_COUNT': join(msg=split_msg,
-                              offset=self.offset,
-                              hex_len=uint32),
-            'KBYTE_COUNT': join(msg=split_msg,
-                                offset=self.offset,
-                                hex_len=uint32),
-            'CLASS_TAG': {0: join(msg=split_msg,
-                                  offset=self.offset,
-                                  hex_len=uint8),
-                          1: join(msg=split_msg,
-                                  offset=self.offset + 1,
-                                  hex_len=c_tag - 2),
-                          2: join(msg=split_msg,
-                                  offset=self.offset + c_tag - 1,
-                                  hex_len=1)},
+            'PKT_COUNT': join(msg=split_msg, offset=self.offset, hex_len=uint32),
+            'KBYTE_COUNT': join(msg=split_msg, offset=self.offset, hex_len=uint32),
+            'CLASS_TAG': {0: join(msg=split_msg, offset=self.offset, hex_len=uint8),
+                          1: join(msg=split_msg, offset=self.offset + 1, hex_len=c_tag - 2),
+                          2: join(msg=split_msg, offset=self.offset + c_tag - 1, hex_len=1)},
             'TIME_TYPE': join(msg=split_msg, offset=self.offset, hex_len=uint8),
             'TIMEOUT': join(msg=split_msg, offset=self.offset, hex_len=uint16),
             'ACT': join(msg=split_msg, offset=self.offset, hex_len=uint64),
@@ -1017,5 +1005,3 @@ class RAN(app_manager.RyuApp):
                 ip_proto = int(flow_set['PROTO'], 16)
                 match_parameters.extend([('ip_proto', ip_proto)])
         return match_parameters
-
-
