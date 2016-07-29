@@ -58,6 +58,7 @@ from lib.diffuse_parse import ipv4_to_int
 from ran import *
 from unittest.mock import patch, Mock
 
+
 class VersionCheckTest(unittest.TestCase):
     def setUp(self):
         pass
@@ -66,13 +67,17 @@ class VersionCheckTest(unittest.TestCase):
         pass
 
     def test_version_valid(self):
-        """Verify correct version is returned for valid input"""
+        """Verify correct version is returned for valid input
+
+        """
         self.assertEqual(version_check(0x04), 'OF13')
         self.assertEqual(version_check(0x05), 'OF14')
         self.assertEqual(version_check(0x06), 'OF15')
 
     def test_version_invalid(self):
-        """Verify incorrect version is returned for invalid input"""
+        """Verify incorrect version is returned for invalid input
+
+        """
         self.assertEqual(version_check(0x03), 0)
         self.assertEqual(version_check('hello'), 0)
         self.assertEqual(version_check(None), 0)
@@ -82,6 +87,10 @@ class VersionCheckTest(unittest.TestCase):
 class PacketProcessTest(unittest.TestCase):
 
     def test_join_valid_array(self):
+        """Verify array conversion is correct for correct array
+
+
+        """
         array = ['01', '02', '03', '04', '05']
         len_array = len(array)
         offset = 0
@@ -89,6 +98,9 @@ class PacketProcessTest(unittest.TestCase):
         self.assertEqual(j, '0102030405')
 
     def test_join_valid_offset(self):
+        """Verify array conversion correct given an offset
+
+        """
         array = ['01', '02', '03', '04', '05']
         len_array = len(array)
         offset = 2
@@ -96,6 +108,9 @@ class PacketProcessTest(unittest.TestCase):
         self.assertEqual(j, '030405')
 
     def test_join_valid_len(self):
+        """Verify array conversion is correct given a length
+
+        """
         array = ['01', '02', '03', '04', '05']
         len_array = 2
         offset = 0
@@ -103,11 +118,17 @@ class PacketProcessTest(unittest.TestCase):
         self.assertEqual(j, '0102')
 
     def test_join_invalid_int(self):
+        """Verify array conversion raises error for integer input
+
+        """
         array = 5
         offset = 3
         self.assertRaises(TypeError, join, array, offset, 1)
 
     def test_join_invalid_none(self):
+        """Verify array conversion raises error for no input
+
+        """
         array = None
         offset = 0
         len_array = 1
