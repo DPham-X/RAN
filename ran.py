@@ -384,6 +384,7 @@ class RAN(app_manager.RyuApp):
         """
         class_name_clean = flow_set['CLASS_TAG'][1].replace('00', '')
         class_name = binascii.a2b_hex(class_name_clean)
+
         return class_name
 
     def parse_rap_packets(self, bin_data):
@@ -711,7 +712,6 @@ class RAN(app_manager.RyuApp):
             If there is an error in importing the class properties
 
         """
-
         # Check if class name exists, get config parameters
         if class_in in self.class_name:
             class_name = class_in
