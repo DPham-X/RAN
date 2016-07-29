@@ -370,7 +370,7 @@ class RAN(app_manager.RyuApp):
 
     @staticmethod
     def class_name_conversion(flow_set):
-        """
+        """Cleans and converts the class name from hex from the flow set
 
         Parameters
         ----------
