@@ -281,92 +281,88 @@ class RAN(app_manager.RyuApp):
             # Check if the switch's datapath is compatible
             max_ver = version_check(datapath.ofproto.OFP_VERSION)
 
-            if max_ver not in self.ofp_ver:
-                continue
-
             for msg_index in range(0, msg_count, 1):
-                # Get current set of action parameters from the received
-                # message
-                flow_set = parameter_sets[msg_index]
 
-                # Check if the switch's datapath is compatible
-                max_ver = version_check(datapath.ofproto.OFP_VERSION)
+                if max_ver in self.ofp_ver:
+                    # Get current set of action parameters from the received
+                    # message
+                    flow_set = parameter_sets[msg_index]
 
-                load = self.msg_converter(flow_set=flow_set,
-                                          max_ver=max_ver)
+                    load = self.msg_converter(flow_set=flow_set,
+                                              max_ver=max_ver)
 
-                # ClassName Conversion
-                class_name = self.class_name_conversion(flow_set)
+                    # ClassName Conversion
+                    class_name = self.class_name_conversion(flow_set)
 
-                # Get MSG type
-                msg_type = int(flow_set['MSG_TYPE'], 16)
+                    # Get MSG type
+                    msg_type = int(flow_set['MSG_TYPE'], 16)
 
-                # Add flows
-                if msg_type == 0:
-                    action = None
+                    # Add flows
+                    if msg_type == 0:
+                        action = None
 
-                    # Get table flow Priority
-                    priority = int(flow_set['CLASS_TAG'][2], 16)
+                        # Get table flow Priority
+                        priority = int(flow_set['CLASS_TAG'][2], 16)
 
-                    # Get Idle & Hard Timeout
-                    timeout = int(flow_set['TIMEOUT'], 16)
+                        # Get Idle & Hard Timeout
+                        timeout = int(flow_set['TIMEOUT'], 16)
 
-                    # Get conf.ini classes
-                    meter_config = self.conf_class_check(class_name)
+                        # Get conf.ini classes
+                        meter_config = self.conf_class_check(class_name)
 
-                    # Enqueue if queue number exists
-                    if meter_config['queue'] is not None:
-                        action = [parser.OFPActionSetQueue(
-                            int(meter_config['queue']))]
+                        # Enqueue if queue number exists
+                        if meter_config['queue'] is not None:
+                            action = [parser.OFPActionSetQueue(
+                                int(meter_config['queue']))]
 
-                    # Add meter/flow on SDN Switch
-                    if meter_config['meter_id'] is not None:
-                        self.create_meter(datapath=datapath,
-                                          meter_config=meter_config)
-                        # Send flow
-                        self.add_flow_metered(datapath=datapath,
-                                              timeout=timeout,
-                                              priority=priority,
-                                              load=load,
+                        # Add meter/flow on SDN Switch
+                        if meter_config['meter_id'] is not None:
+                            self.create_meter(datapath=datapath,
                                               meter_config=meter_config)
-                    else:
-                        # Create instruction
-                        if action is not None:
-                            inst = [
-                                parser.OFPInstructionGotoTable(1),
-                                parser.OFPInstructionActions(
-                                    ofproto.OFPIT_APPLY_ACTIONS,
-                                    action)]
+                            # Send flow
+                            self.add_flow_metered(datapath=datapath,
+                                                  timeout=timeout,
+                                                  priority=priority,
+                                                  load=load,
+                                                  meter_config=meter_config)
                         else:
-                            inst = [parser.OFPInstructionGotoTable(1)]
+                            # Create instruction
+                            if action is not None:
+                                inst = [
+                                    parser.OFPInstructionGotoTable(1),
+                                    parser.OFPInstructionActions(
+                                        ofproto.OFPIT_APPLY_ACTIONS,
+                                        action)]
+                            else:
+                                inst = [parser.OFPInstructionGotoTable(1)]
 
-                        self.add_flow(datapath=datapath,
-                                      timeout=timeout,
-                                      priority=priority,
-                                      instruction=inst,
-                                      load=load)
+                            self.add_flow(datapath=datapath,
+                                          timeout=timeout,
+                                          priority=priority,
+                                          instruction=inst,
+                                          load=load)
 
-                # Delete IP Flow
-                elif msg_type == 1:
-                    self.delete_flow(datapath=datapath,
-                                     load=load)
-                    self.logger.info(
-                        "%s Flow deletion sent", time_now())
+                    # Delete IP Flow
+                    elif msg_type == 1:
+                        self.delete_flow(datapath=datapath,
+                                         load=load)
+                        self.logger.info(
+                            "%s Flow deletion sent", time_now())
 
-                # Delete All IP Flows
-                elif msg_type == 2:
-                    # Reset match
-                    load = []
-                    load.extend([('eth_type', 0x0800)])
+                    # Delete All IP Flows
+                    elif msg_type == 2:
+                        # Reset match
+                        load = []
+                        load.extend([('eth_type', 0x0800)])
 
-                    # Send delete
-                    self.delete_flow(datapath=datapath,
-                                     load=load)
-                    self.logger.info(
-                        "%s All flow deletion sent", time_now())
-                else:
-                    self.logger.info(
-                        "%s MSG_TYPE did not match", time_now())
+                        # Send delete
+                        self.delete_flow(datapath=datapath,
+                                         load=load)
+                        self.logger.info(
+                            "%s All flow deletion sent", time_now())
+                    else:
+                        self.logger.info(
+                            "%s MSG_TYPE did not match", time_now())
 
     @staticmethod
     def class_name_conversion(flow_set):
