@@ -22,6 +22,24 @@ CONFIG FILE
 -----------
 The RAN will import class configurations from a conf.ini file in the RAN directory
 An example conf.ini file has been provided.
+
+The conf.ini will look similar to this:
+    
+    [default]
+    queue = 0
+    
+    [class1]
+    queue = 0
+    type = drop
+    meterid = 1
+    rate = 20000
+    
+    [class2]
+    queue = 1
+    type = dscp
+    meterid = 2
+    rate = 30000
+    
    
 NEW FEATURES IN THIS VERSION
 ----------------------------
@@ -81,8 +99,8 @@ RUNNING RYU WITH THE RAN
     $ cd RAN
     $ ryu-manager ./ran.py
 
-UPDATE
-------
+UPDATING
+--------
 __Ryu Updates__
 
     $ cd ryu
@@ -95,7 +113,18 @@ __RAN Updates__
 
 RAN TESTBED
 -----------
-1. First configure the `conf.ini` file
+1. Change the directory to the RAN
+    `cd RAN`
+2. First configure the `conf.ini` file
+3. Run the ryu-manager with the RAN using
+    `ryu-manager ./ran.py`
+
+COMMANDS
+--------
+__Open vSwitch 2.3.0 Commands:__
+`ovs-vsctl set Bridge br0 protocol=OpenFlow13`
+`ovs-ofctl -O OpenFlow13 br0 dump-flows`
+
 
 
 LICENSE
