@@ -114,15 +114,21 @@ __RAN Updates__
 RAN TESTBED
 -----------
 1. Change the directory to the RAN
-    `cd RAN`
+
+    `$ cd RAN`
+    
 2. First configure the `conf.ini` file
 3. Run the ryu-manager with the RAN using
-    `ryu-manager ./ran.py`
+
+    `$ ryu-manager ./ran.py`
+
 
 COMMANDS
 --------
 __Open vSwitch 2.3.0 Commands:__
+
 `ovs-vsctl set Bridge br0 protocol=OpenFlow13`
+
 `ovs-ofctl -O OpenFlow13 br0 dump-flows`
 
 
