@@ -63,6 +63,8 @@ from ryu.controller import ofp_event
 from ryu.controller.handler import CONFIG_DISPATCHER
 from ryu.controller.handler import set_ev_cls
 from ryu.lib import hub
+from ryu.ofproto import ofproto_v1_0
+from ryu.ofproto import ofproto_v1_2
 from ryu.ofproto import ofproto_v1_3
 from ryu.ofproto import ofproto_v1_4
 from ryu.ofproto import ofproto_v1_5
@@ -87,7 +89,9 @@ class RAN(app_manager.RyuApp):
 
     """
     # Supported OpenFlow Versions
-    OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION,
+    OFP_VERSIONS = [ofproto_v1_0.OFP_VERSION,
+                    ofproto_v1_2.OFP_VERSION,
+                    ofproto_v1_3.OFP_VERSION,
                     ofproto_v1_4.OFP_VERSION,
                     ofproto_v1_5.OFP_VERSION]
 
@@ -146,7 +150,7 @@ class RAN(app_manager.RyuApp):
         priority = 0  # Miss flows are the last to match
 
         # Create on flow-miss go to controller for compatible OpenFlow versions
-        if ofp_ver != 0:
+        if ofp_ver in self.ofp_ver:
             self.add_flow_miss(datapath=datapath,
                                priority=priority,
                                table_id=table_id)
@@ -241,7 +245,7 @@ class RAN(app_manager.RyuApp):
         buffer_size = 1024
 
         # Accept TCP connection from a host
-        conn, _ = sock.accept()
+        conn, __ = sock.accept()
 
         # Receive the packet, parse the payload and close the connection
         while True:
@@ -267,12 +271,12 @@ class RAN(app_manager.RyuApp):
         ----------
         parameter_sets: list of dicts
             The index of the list contains a dictionary containing a set of
-            Action Parameters
+            information elements
         msg_count: int
             The number of sets of in the decoded msg
 
         """
-        for _, datapath_key in enumerate(self.datapaths):
+        for __, datapath_key in enumerate(self.datapaths):
             # Import most recent 'Datapath' of switch and their functions
             datapath = self.datapaths[datapath_key]
             ofproto = datapath.ofproto
@@ -284,7 +288,7 @@ class RAN(app_manager.RyuApp):
             for msg_index in range(0, msg_count, 1):
 
                 if max_ver in self.ofp_ver:
-                    # Get current set of action parameters from the received
+                    # Get current set of information elements from the received
                     # message
                     flow_set = parameter_sets[msg_index]
 
@@ -331,7 +335,7 @@ class RAN(app_manager.RyuApp):
                                 inst = [
                                     parser.OFPInstructionGotoTable(1),
                                     parser.OFPInstructionActions(
-                                        ofproto.OFPIT_APPLY_ACTIONS,
+                                        ofproto.OFPIT_WRITE_ACTIONS,
                                         action)]
                             else:
                                 inst = [parser.OFPInstructionGotoTable(1)]
@@ -371,7 +375,7 @@ class RAN(app_manager.RyuApp):
         Parameters
         ----------
         flow_set: dict
-            The current dictionary containing a set of Action Parameters
+            The current dictionary containing a set of information elements
 
         Returns
         -------
@@ -424,7 +428,7 @@ class RAN(app_manager.RyuApp):
         split_msg = [str_data[i:i + 2] for i in range(0, len(str_data), 2)]
 
         # Create the header
-        class Header(object):
+        class _Header(object):
             """Class containing packet header information
 
             Attribute
@@ -458,8 +462,8 @@ class RAN(app_manager.RyuApp):
             self.offset += header_offset_check('set_len')
 
         # Get Template SET ID and Length
-        header_set_id = Header.set_id[0]
-        header_set_len = int(Header.set_len[0], 16) - 10
+        header_set_id = _Header.set_id[0]
+        header_set_len = int(_Header.set_len[0], 16) - 10
 
         # Decode the template if ID is 1
         if header_set_id == '0001':
@@ -721,13 +725,13 @@ class RAN(app_manager.RyuApp):
         try:
             csm = self.get_class_properties(class_name)
             queue = csm.get('queue')  # queue number
-            _type = csm.get('type')
+            type_ = csm.get('type')
             meter_id = csm.get('meterid')
             rate = csm.get('rate')
             dscp_no = csm.get('dscp')
 
             return dict(queue=queue,
-                        type=_type,
+                        type=type_,
                         meter_id=meter_id,
                         rate=rate,
                         dscp_no=dscp_no)
@@ -818,7 +822,7 @@ class RAN(app_manager.RyuApp):
         action = [parser.OFPActionSetQueue(int(meter_config['queue']))]
         # Set Goto next table
         inst = [parser.OFPInstructionGotoTable(1),
-                parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,
+                parser.OFPInstructionActions(ofproto.OFPIT_WRITE_ACTIONS,
                                              action)]
         # Set Meter ID that will monitor this flow
         inst.insert(0, parser.OFPInstructionMeter(int(meter_id)))
@@ -910,7 +914,7 @@ class RAN(app_manager.RyuApp):
                                           ofproto.OFPCML_NO_BUFFER)]
         # Create apply action instruction
         inst_apply_action = [parser.OFPInstructionActions(
-            ofproto.OFPIT_APPLY_ACTIONS, actions)]
+            ofproto.OFPIT_WRITE_ACTIONS, actions)]
 
         # Package Flow modification add messages
         flow_miss_mod = parser.OFPFlowMod(datapath=datapath,
@@ -935,7 +939,8 @@ class RAN(app_manager.RyuApp):
         Parameters
         ----------
         flow_set: dict
-            The dictionary contains the parsed action parameters for one set
+            The dictionary contains the parsed information elements
+            for one set
         max_ver: str 'OFXX'
             Highest supported version of the switch
 
