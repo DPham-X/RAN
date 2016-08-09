@@ -4,7 +4,7 @@ The Ryu Action Node (RAN) is a prioritisation tool for implementing Remote Actio
 
 INTRODUCTION
 ------------
-This README is for RAN v1.01
+This is the README for the RAN v1.01
 
 This README gives a brief overview on how to install and setup the RAN using the FCN.
 Example config files are provided.
@@ -18,6 +18,11 @@ For an updated RAN and FCN check:
 
     https://github.com/XykotiC/RAN/
 
+CONFIG FILE
+-----------
+The RAN will import class configurations from a conf.ini file in the RAN directory
+An example conf.ini file has been provided.
+   
 NEW FEATURES IN THIS VERSION
 ----------------------------
 
@@ -25,24 +30,29 @@ NEW FEATURES IN THIS VERSION
 - Supports Multi Message RAP
 - Supports Multi Version SDN switches
 
-  
-INSTALLING THE RAN
--------------------
+RYU ACTION NODE TEST BED
+------------------------
+RAN Requirements:
+    
+    Ryu Framework
+    OpenFlow SDN Switch
+    Python 2.7
+    
+Ryu Prerequisites
+
+    python-eventlet
+    python-routes
+    python-webob
+    python-paramiko
+
+Installation
+------------
+__INSTALLING RYU__
 
     $ git clone https://github.com/XykotiC/RAN.git
-
-RUNNING RYU WITH THE RAN
-------------------------
-
-    $ cd RAN
-    $ ryu-manager ./ran.py
-   
-Installing RYU
---------------
 From the RYU web page:
 
     https://osrg.github.io/ryu/
-
 
 Download and build
 
@@ -56,23 +66,37 @@ or
     $ cd ryu
     $ python ./setup.py install
 
-Prerequisites
-
-    python-eventlet
-    python-routes
-    python-webob
-    python-paramiko
-
 Installing Prerequisites
 
-    $ sudo apt-get update`
-    $ sudo apt-get install python-eventlet python-routes python-webob python-paramiko`
+    $ sudo apt-get update
+    $ sudo apt-get install python-eventlet python-routes python-webob python-paramiko
 
-UPDATE RYU
-------------
+__INSTALLING THE RAN__
+
+    $ git clone https://github.com/XykotiC/RAN.git
+
+RUNNING RYU WITH THE RAN
+------------------------
+
+    $ cd RAN
+    $ ryu-manager ./ran.py
+
+UPDATE
+------
+__Ryu Updates__
 
     $ cd ryu
     $ git pull
+
+__RAN Updates__
+
+    $ cd RAN
+    $ git pull
+
+RAN TESTBED
+-----------
+1. First configure the `conf.ini` file
+
 
 LICENSE
 -------
