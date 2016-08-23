@@ -51,10 +51,10 @@ import sys
 sys.path.append("..")
 
 from lib.packet_process import join
-from lib.ver_check import version_check
-from lib.diffuse_parse import proto_check
-from lib.diffuse_parse import ipv4_to_int
-
+from lib.packet_process import version_check
+from lib.packet_process import proto_check
+from lib.packet_process import ipv4_to_int
+from lib.packet_process import time_now
 from ran import *
 from unittest.mock import patch, Mock
 
@@ -212,18 +212,17 @@ class RanTest(unittest.TestCase):
     def test_socket_tcp(self):
         ran = RAN(app_manager.RyuApp)
         sock = ran.socket_tcp()
-        IP = '0.0.0.0'
-        PORT = 5000
+        ip = '0.0.0.0'
+        port = 5000
 
-        if IP and PORT not in sock:
+        if ip and port not in sock:
             self.fail('Wrong Address')
         if sock.proto != 0:
             self.fail('Wrong protocol')
         pass
 
-
     def test_time_now(self):
-        x = RAN.time_now()
+        x = time_now()
         pass
 
 if __name__ == '__main__':
