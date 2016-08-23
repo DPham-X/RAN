@@ -156,6 +156,47 @@ def msg_check(offset, template):
     }.get(offset, 0)
 
 
+def proto_check(proto):
+    """Checks if protocol is TCP or UDP
+
+    Parameters
+    ----------
+    proto: int
+        The protocol number in the FCN/CN message
+    Returns
+    -------
+        The protocol name if TCP/UDP else returns nothing
+
+    """
+    # Check for TCP
+    if proto == 6:
+        return 'tcp'
+    # Check for UDP
+    elif proto == 17:
+        return 'udp'
+    else:
+        return None
+
+
+def version_check(version):
+    """Checks if OpenFlow version is compatible and returns the version if it is
+
+    Parameters
+    ----------
+    version: hex
+        The OpenFlow version taken from the SDN switch 'hello' message
+    Returns
+    -------
+        The OpenFlow version if match, else 0 for unsupported version
+
+    """
+    return {
+            4: 'OF13',  # 0x04 -> OF1.3
+            5: 'OF14',  # 0x05 -> OF1.4
+            6: 'OF15',  # 0x06 -> OF1.5
+        }.get(version, 0)
+
+
 def time_now():
     """Gives the current Time
 
@@ -167,3 +208,27 @@ def time_now():
     """
     cur_time = str(datetime.now().strftime("%d-%m-%Y %H:%M:%S"))
     return cur_time
+
+
+def ipv4_to_int(string):
+    """Converts an IPv4 string to integer
+
+    Parameters
+    ----------
+    string: str eg. '1.1.1.1'
+        The IPv4 string
+    Returns
+    -------
+        The integer representation of the IPv4 string
+
+    """
+    try:
+        ip = string.split('.')
+        assert len(ip) == 4
+        i = 0
+        for b in ip:
+            b = int(b)
+            i = (i << 8) | b
+    except Exception as e:
+        raise Exception('Invalid input IP:', e)
+    return i
