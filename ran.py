@@ -55,7 +55,6 @@ import binascii
 import copy
 import socket
 import struct
-from datetime import datetime
 
 # Import RYU required libraries
 from ryu.base import app_manager
@@ -70,14 +69,14 @@ from ryu.ofproto import ofproto_v1_4
 from ryu.ofproto import ofproto_v1_5
 
 # Import RAN required libraries
-from lib.diffuse_parse import ipv4_to_int
-from lib.diffuse_parse import proto_check
+from lib.packet_process import ipv4_to_int
+from lib.packet_process import proto_check
 from lib.packet_process import header_offset_check
 from lib.packet_process import join
 from lib.packet_process import msg_check
 from lib.packet_process import template_check
 from lib.packet_process import time_now
-from lib.ver_check import version_check
+from lib.packet_process import version_check
 
 
 class RAN(app_manager.RyuApp):
@@ -112,6 +111,10 @@ class RAN(app_manager.RyuApp):
 
         # List of valid class names that have a configuration set, including a
         # required 'default' class
+        self.port = 5000
+        self.host = ''
+        self.table_id = 0
+        self.protocol = 'TCP'
         self.class_name = self.import_conf()
 
         # Initialises the Diffuse Parser module to receive any RAP messages.
@@ -146,14 +149,13 @@ class RAN(app_manager.RyuApp):
         else:
             self.datapaths.update({datapath.id: datapath})
 
-        table_id = 0  # RAN always in lowest table
         priority = 0  # Miss flows are the last to match
 
         # Create on flow-miss go to controller for compatible OpenFlow versions
         if ofp_ver in self.ofp_ver:
             self.add_flow_miss(datapath=datapath,
                                priority=priority,
-                               table_id=table_id)
+                               table_id=self.table_id)
         else:
             self.logger.debug("Error: %s Unsupported Version '%s'",
                               ofp_ver, datapath.id)
@@ -171,7 +173,12 @@ class RAN(app_manager.RyuApp):
 
         """
         # Initialise the socket to listen on host and port using TCP
-        sock = self.listen_tcp_socket()
+        if self.protocol == 'TCP':
+            sock = self.listen_tcp_socket()
+        elif self.protocol == 'UDP':
+            exit('UDP Unsupported')
+            sock = self.listen_udp_socket()
+
         self.logger.info("%s RAN initiated", time_now())
         while True:
             # Receive incoming messages
@@ -193,8 +200,8 @@ class RAN(app_manager.RyuApp):
             The created socket
 
         """
-        host = ''  # Listen on localhost
-        port = 5000  # Listen on port 5000
+        host = self.host  # Listen on localhost
+        port = self.port  # Listen on port 5000
 
         # Create socket
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -217,12 +224,10 @@ class RAN(app_manager.RyuApp):
             sock.listen(1)
         except socket.error:
             self.logger.error(
-                '%s Cannot listen on port %d', str(
-                    datetime.now()), port)
+                '%s Cannot listen on port %d', time_now(), port)
         else:
             self.logger.info(
-                '%s Socket now listening on port %d', str(
-                    datetime.now()), port)
+                '%s Socket now listening on port %d', time_now(), port)
         return sock
 
     def receive_parsed_data(self, sock):
@@ -242,20 +247,32 @@ class RAN(app_manager.RyuApp):
             The number of sets of in the decoded msg
 
         """
-        buffer_size = 1024
+        buffer_size = 64000
 
         # Accept TCP connection from a host
         conn, __ = sock.accept()
-
+        data = []
         # Receive the packet, parse the payload and close the connection
         while True:
-            data = conn.recv(buffer_size)
-            if not data:
+            # Get from buffer
+            received_data = conn.recv(buffer_size)
+            # Add received data to total message
+            data.append(received_data)
+            # If buffer is empty then stop
+            if not received_data:
                 break
-            decoded_msg, msg_count = self.parse_rap_packets(data)
-            conn.close()
+        conn.close()
+
+        if data is not None:
+            # Collapse received data into long byte string
+            data = ''.join(data)
             self.logger.info("%s Flow received", time_now())
-            return decoded_msg, msg_count
+            try:
+                # Parse RAP packet
+                decoded_msg, msg_count = self.parse_rap_packets(data)
+                return decoded_msg, msg_count
+            except (ValueError, TypeError):
+                print("%s Error Parsing", time_now())
 
     def implement_parser(self, parameter_sets, msg_count):
         """Implements parsed data depending on Msg Type
@@ -491,7 +508,7 @@ class RAN(app_manager.RyuApp):
                                  hex_len=uint16), 16))
                     self.offset += uint16
 
-        # Get next set id
+        # Get next set ID
         set_id = int(
             join(
                 msg=split_msg,
@@ -568,7 +585,7 @@ class RAN(app_manager.RyuApp):
                                     priority=priority,
                                     match=match,
                                     instructions=instruction,
-                                    table_id=0)
+                                    table_id=self.table_id)
             self.logger.info(
                 "%s Sending Flow", time_now())
             datapath.send_msg(mod)
@@ -611,7 +628,7 @@ class RAN(app_manager.RyuApp):
                 datapath=datapath,
                 cookie=0,
                 cookie_mask=0,
-                table_id=0,
+                table_id=self.table_id,
                 command=ofproto.OFPFC_DELETE,
                 idle_timeout=0,
                 hard_timeout=0,
@@ -643,21 +660,50 @@ class RAN(app_manager.RyuApp):
         -------
         class_name: list
             The list of class names imported
+        self.host: string
+            The host for socket
+        self.port: int
+            The port for socket to listen on
+        self.table_id: int
+            The table ID to instantiate RAN flow rules
 
         """
         # Initialise ini importer
         self.config = ConfigParser.ConfigParser()
 
         # Read the conf.ini data
-        # try:
-        #    print('Input location of configuration file:')
-        #    self.config.read(input())
-        # except (ValueError, SyntaxError):
         self.config.read('./conf.ini')
-        #    self.logger.info("using: ./conf.ini")
 
-        # Get class names imported
+        # Get imported class names
         class_name = self.config.sections()
+
+        if 'SETTINGS' in class_name:
+            class_name.remove('SETTINGS')
+            properties = self.get_class_properties('SETTINGS')
+            try:
+                self.host = properties['host']
+            except KeyError:
+                self.logger.error(
+                    "%s Could not get host config using default \'\'",
+                    time_now())
+            try:
+                self.port = int(properties['port'])
+            except (ValueError, KeyError):
+                self.logger.error(
+                    "%s Could not get port config using default \'5000\'",
+                    time_now())
+            try:
+                self.table_id = int(properties['table_id'])
+            except (ValueError, KeyError):
+                self.logger.error(
+                    "%s Could not get Table ID config using default \'0\'",
+                    time_now())
+            try:
+                self.protocol = properties['protocol']
+            except (ValueError, KeyError):
+                self.logger.error(
+                    "%s Could not get Protocol config using default \'TCP\'",
+                    time_now())
         return class_name
 
     def get_class_properties(self, matching_class):
@@ -794,7 +840,13 @@ class RAN(app_manager.RyuApp):
             # Send meter mod
             datapath.send_msg(meter_mod)
 
-    def add_flow_metered(self, datapath, timeout, priority, load, meter_config):
+    def add_flow_metered(
+            self,
+            datapath,
+            timeout,
+            priority,
+            load,
+            meter_config):
         """Add flows that use meters
 
         Parameters
@@ -921,12 +973,12 @@ class RAN(app_manager.RyuApp):
                                           priority=priority,
                                           match=match,
                                           instructions=inst_apply_action,
-                                          table_id=0)
+                                          table_id=table_id)
         next_table_mod = parser.OFPFlowMod(datapath=datapath,
                                            priority=priority + 1,
                                            match=match,
                                            instructions=inst_goto_next,
-                                           table_id=0)
+                                           table_id=table_id)
 
         # Send messages to SDN Switch
         datapath.send_msg(flow_miss_mod)
