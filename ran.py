@@ -428,7 +428,7 @@ class RAN(app_manager.RyuApp):
         split_msg = [str_data[i:i + 2] for i in range(0, len(str_data), 2)]
 
         # Create the header
-        class _Header(object):
+        class Header_(object):
             """Class containing packet header information
 
             Attribute
@@ -462,8 +462,8 @@ class RAN(app_manager.RyuApp):
             self.offset += header_offset_check('set_len')
 
         # Get Template SET ID and Length
-        header_set_id = _Header.set_id[0]
-        header_set_len = int(_Header.set_len[0], 16) - 10
+        header_set_id = Header_.set_id[0]
+        header_set_len = int(Header_.set_len[0], 16) - 10
 
         # Decode the template if ID is 1
         if header_set_id == '0001':

@@ -14,7 +14,7 @@ For more information regarding the RAN and FCN refer to the technical report her
     http://caia.swin.edu.au/reports/160429A/CAIA-TR-160429A.pdf
     http://caia.swin.edu.au/reports/160422A/CAIA-TR-160422A.pdf
 
-For an updated RAN and FCN check:
+For an updated RAN check:
 
     https://github.com/XykotiC/RAN/
 
@@ -44,9 +44,10 @@ The conf.ini will look similar to this:
 NEW FEATURES IN THIS VERSION
 ----------------------------
 
-- Supports OpenFlow 1.3, 1.4
-- Supports Multi Message RAP
-- Supports Multi Version SDN switches
+- RAN separated from Simple_Switch_13
+- Supports OF1.3 and OF1.4
+- Supports Multi-Message
+- Supports Multi-Version
 
 RYU ACTION NODE TEST BED
 ------------------------
@@ -63,11 +64,12 @@ Ryu Prerequisites
     python-webob
     python-paramiko
 
-Installation
+INSTALLATION
 ------------
 __INSTALLING RYU__
 
     $ git clone https://github.com/XykotiC/RAN.git
+    
 From the RYU web page:
 
     https://osrg.github.io/ryu/
@@ -127,12 +129,24 @@ COMMANDS
 --------
 __Open vSwitch 2.3.0 Commands:__
 
-`ovs-vsctl set Bridge br0 protocol=OpenFlow13`
+`ovs-vsctl set Bridge s1 protocol=OpenFlow13`
 
-`ovs-ofctl -O OpenFlow13 br0 dump-flows`
+`ovs-ofctl -O OpenFlow13 s1 dump-flows`
 
+__Mininet 2.2.1 Commands__
 
-
+GUI Setup:
+     
+    # Clear all OpenFlow controllers
+    $ sudo mn -c
+    # Start Mininet GUI
+    $ sudo /mininet/examples/miniedit
+    
+    # Open up controller, switch, host
+    $ xterm c0
+    $ xterm s1
+    $ xterm h1
+    
 LICENSE
 -------
 
