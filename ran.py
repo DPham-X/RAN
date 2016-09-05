@@ -28,7 +28,7 @@
 # The views and conclusions contained in the software and documentation are
 # those of the authors and should not be interpreted as representing official
 # policies, either expressed or implied, of the FreeBSD Project.
-"""Ryu Action Node - RYU based application
+"""Ryu Action Node v1.01 - RYU based application
 
 Usage
 -----
@@ -37,7 +37,7 @@ ryu-manager ./ran.py
 Information
 -----------
 - Compatible with ryu.app.simple_switch and ryu.app.rest_router running on Open
-    vSwitch OpenFlow Table 2
+    vSwitch OpenFlow Table 0
 - Supports Multi Version Switches
     - OpenFlow 1.3
     - OpenFlow 1.4
@@ -115,7 +115,7 @@ class RAN(app_manager.RyuApp):
         self.host = ''
         self.table_id = 0
         self.protocol = 'TCP'
-        self.class_name = self.import_conf()
+        self.class_name = self.import_config()
 
         # Initialises the Diffuse Parser module to receive any RAP messages.
         hub.spawn(self.parser_initialiser)
@@ -272,7 +272,7 @@ class RAN(app_manager.RyuApp):
                 decoded_msg, msg_count = self.parse_rap_packets(data)
                 return decoded_msg, msg_count
             except (ValueError, TypeError):
-                print("%s Error Parsing", time_now())
+                self.logger.error("%s Error Parsing", time_now())
 
     def implement_parser(self, parameter_sets, msg_count):
         """Implements parsed data depending on Msg Type
@@ -329,7 +329,7 @@ class RAN(app_manager.RyuApp):
                         timeout = int(flow_set['TIMEOUT'], 16)
 
                         # Get conf.ini classes
-                        meter_config = self.conf_class_check(class_name)
+                        meter_config = self.config_class_check(class_name)
 
                         # Enqueue if queue number exists
                         if meter_config['queue'] is not None:
@@ -653,7 +653,7 @@ class RAN(app_manager.RyuApp):
                 time_now(),
                 datapath.id)
 
-    def import_conf(self):
+    def import_config(self):
         """Import conf.ini class names
 
         Returns
@@ -678,8 +678,8 @@ class RAN(app_manager.RyuApp):
         class_name = self.config.sections()
 
         if 'SETTINGS' in class_name:
-            class_name.remove('SETTINGS')
             properties = self.get_class_properties('SETTINGS')
+            class_name.remove('SETTINGS')
             try:
                 self.host = properties['host']
             except KeyError:
@@ -738,7 +738,7 @@ class RAN(app_manager.RyuApp):
 
         return class_properties
 
-    def conf_class_check(self, class_in='default'):
+    def config_class_check(self, class_in='default'):
         """Check incoming RAP messages against conf.ini and get the required
         configuration
 
@@ -805,7 +805,7 @@ class RAN(app_manager.RyuApp):
         if meter_config['meter_id'] is not None:
             meter_id = int(meter_config['meter_id'])
         if meter_config['type'] is not None:
-            type_ = meter_config['type']
+            meter_type = meter_config['type']
         if meter_config['rate'] is not None:
             rate = int(meter_config['rate'])
         if meter_config['dscp_no'] is not None:
@@ -817,27 +817,29 @@ class RAN(app_manager.RyuApp):
         # Send Meter mod message for compatible version switches
         if ofp_ver in ['OF13', 'OF14']:
             # Create DROP meter for meter type 'drop'
-            if type_ == 'drop':
+            if meter_type == 'drop':
                 bands = [parser.OFPMeterBandDrop(rate=rate,
                                                  burst_size=0)]
                 self.logger.info("%s Sending MeterMod: Type = DROP",
                                  time_now())
 
             # Create DSCP meter for meter type 'dscp'
-            elif type_ == 'dscp':
+            elif meter_type == 'dscp':
                 bands = [parser.OFPMeterBandDscpRemark(rate=rate,
                                                        burst_size=0,
                                                        prec_level=dscp_no)]
                 self.logger.info("%s Sending MeterMod: Type = DSCP",
                                  time_now())
 
+            else:
+                bands = []
             # Serialise meter mod/add command
             meter_mod = parser.OFPMeterMod(datapath=datapath,
                                            command=ofproto.OFPMC_ADD,
                                            flags=ofproto.OFPMF_KBPS,
                                            meter_id=meter_id,
                                            bands=bands)
-            # Send meter mod
+            # Send meter mod to SDN switch
             datapath.send_msg(meter_mod)
 
     def add_flow_metered(

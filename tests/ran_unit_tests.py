@@ -55,40 +55,17 @@ from lib.packet_process import version_check
 from lib.packet_process import proto_check
 from lib.packet_process import ipv4_to_int
 from lib.packet_process import time_now
+from lib.packet_process import header_offset_check
+from lib.packet_process import template_check
+from lib.packet_process import msg_check
 from ran import *
 from unittest.mock import patch, Mock
-
-
-class VersionCheckTest(unittest.TestCase):
-    def setUp(self):
-        pass
-
-    def tearDown(self):
-        pass
-
-    def test_version_valid(self):
-        """Verify correct version is returned for valid input
-
-        """
-        self.assertEqual(version_check(0x04), 'OF13')
-        self.assertEqual(version_check(0x05), 'OF14')
-        self.assertEqual(version_check(0x06), 'OF15')
-
-    def test_version_invalid(self):
-        """Verify incorrect version is returned for invalid input
-
-        """
-        self.assertEqual(version_check(0x03), 0)
-        self.assertEqual(version_check('hello'), 0)
-        self.assertEqual(version_check(None), 0)
-        self.assertEqual(version_check(3), 0)
 
 
 class PacketProcessTest(unittest.TestCase):
 
     def test_join_valid_array(self):
         """Verify array conversion is correct for correct array
-
 
         """
         array = ['01', '02', '03', '04', '05']
@@ -133,6 +110,161 @@ class PacketProcessTest(unittest.TestCase):
         offset = 0
         len_array = 1
         self.assertRaises(TypeError, join, array, offset, len_array)
+
+    def test_header_offset_valid(self):
+        """Verify correct offset for each header name
+
+        """
+        header_name = ['ver',
+                       'set_len',
+                       'seq_no',
+                       'set_id',
+                       'm_len',
+                       'time']
+
+        header_length = {'ver': 2,
+                         'm_len': 2,
+                         'seq_no': 4,
+                         'time': 4,
+                         'set_id': 2,
+                         'set_len': 2}
+
+        for __, name in enumerate(header_name):
+            self.assertEqual(header_offset_check(name), header_length[name])
+
+    def test_header_offset_invalid(self):
+        """Verify correct output for invalid header name
+
+        """
+        self.assertEqual(header_offset_check('123'), 0)
+        self.assertEqual(header_offset_check(123), 0)
+        self.assertEqual(header_offset_check(None), 0)
+
+    def test_template_check_valid(self):
+        """Verify correct Template IDs
+
+        """
+        template_name = ['0001',
+                         '0002',
+                         '0003',
+                         '0004',
+                         '0005',
+                         '0006',
+                         '0007',
+                         '0008',
+                         '0009',
+                         '0010',
+                         '0011',
+                         '000a',
+                         '000b',
+                         '000c',
+                         '000d',
+                         '000e',
+                         '000f',
+                         '8000',
+                         '8001',
+                         '8002',
+                         '8003',
+                         'c000']
+
+        template_id = {'0001': 'SRC_IPV4',
+                       '0002': 'DST_IPV4',
+                       '0003': 'SRC_PORT',
+                       '0004': 'DST_PORT',
+                       '0005': 'PROTO',
+                       '0006': 'SRC_IPV6',
+                       '0007': 'DST_IPV6',
+                       '0008': 'IPV4_TOS',
+                       '0009': 'IPv6_FLOW_LABEL',
+                       '0010': 'PKT_COUNT',
+                       '0011': 'KBYTE_COUNT',
+                       '000a': 'CLASS_LABEL',
+                       '000b': 'MATCH_DIR',
+                       '000c': 'MSG_TYPE',
+                       '000d': 'TIME_TYPE',
+                       '000e': 'TIMEOUT',
+                       '000f': 'ACT_FLAG',
+                       '8000': 'ACT',
+                       '8001': 'ACT_PAR',
+                       '8002': 'CLASS_NAME',
+                       '8003': 'EXPORT_NAME',
+                       'c000': 'CLASS_TAG'}
+
+        for __, name in enumerate(template_name):
+            self.assertEqual(template_check(name), template_id[name])
+
+    def test_template_id_invalid(self):
+        """Verify correct output template ID for invalid input
+
+        """
+        self.assertEqual(template_check('123'), '0000')
+        self.assertEqual(template_check(123), '0000')
+        self.assertEqual(template_check(None), '0000')
+
+    def test_msg_check_valid(self):
+        """Verify correct output msg ID for valid input
+
+        """
+        msg_name = ['T_ID',
+                    'T_FLAG',
+                    'CLASS_NAME',
+                    'MSG_TYPE',
+                    'SRC_IPV4',
+                    'DST_IPV4',
+                    'SRC_PORT',
+                    'DST_PORT',
+                    'PROTO',
+                    'PKT_COUNT',
+                    'KBYTE_COUNT',
+                    'TIME_TYPE',
+                    'TIMEOUT',
+                    'ACT',
+                    'ACT_FLAG',
+                    'ACT_PAR']
+
+        msg_length = {'T_ID': 0,
+                      'T_FLAG': 0,
+                      'CLASS_NAME': 8,
+                      'MSG_TYPE': 1,
+                      'SRC_IPV4': 4,
+                      'DST_IPV4': 4,
+                      'SRC_PORT': 2,
+                      'DST_PORT': 2,
+                      'PROTO': 1,
+                      'PKT_COUNT': 4,
+                      'KBYTE_COUNT': 4,
+                      'TIME_TYPE': 1,
+                      'TIMEOUT': 2,
+                      'ACT': 8,
+                      'ACT_FLAG': 2,
+                      'ACT_PAR': 8}
+
+        act_par = [len('00000000')]
+
+        for __, name in enumerate(msg_name):
+            self.assertEqual(msg_check(name, act_par), msg_length[name])
+
+    def test_msg_check_invalid(self):
+        print("hello")
+
+    def test_version_valid(self):
+        """Verify correct version is returned for valid input
+
+        """
+        self.assertEqual(version_check(0x04), 'OF13')
+        self.assertEqual(version_check(0x05), 'OF14')
+        self.assertEqual(version_check(0x06), 'OF15')
+
+    def test_version_invalid(self):
+        """Verify incorrect version is returned for invalid input
+
+        """
+        self.assertEqual(version_check(0x03), 0)
+        self.assertEqual(version_check(0x02), 0)
+        self.assertEqual(version_check(0x01), 0)
+        self.assertEqual(version_check('hello'), 0)
+        self.assertEqual(version_check(None), 0)
+        self.assertEqual(version_check(3), 0)
 
 
 class DiffuseParserTest(unittest.TestCase):
