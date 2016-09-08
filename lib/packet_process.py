@@ -52,15 +52,15 @@ def join(msg, offset, hex_len):
 
     Returns
     -------
-    out: str
+    output: str
         The specified concatenated hex array in string form
 
     """
     try:
-        out = ''.join(msg[offset:offset + hex_len])
+        output = ''.join(msg[offset:offset + hex_len])
     except TypeError:
         raise TypeError('Input should be a hex array')
-    return out
+    return output
 
 
 def header_offset_check(key):
@@ -86,12 +86,13 @@ def header_offset_check(key):
     }.get(key, 0)
 
 
-def template_check(template_id):
-    """Checks the template ID and returns the template name corresponding to it
+def template_check(template_id_hex):
+    """Checks the template hex vlad and returns the template name
+    corresponding to it
 
     Parameters
     ----------
-    template_id: hex str of template id
+    template_id_hex: hex str of template id
         The template id retrieved from the parsed RAP packet
 
     Returns
@@ -122,18 +123,18 @@ def template_check(template_id):
         '8002': 'CLASS_NAME',
         '8003': 'EXPORT_NAME',
         'c000': 'CLASS_TAG',
-    }.get(template_id, '0000')
+    }.get(template_id_hex, '0000')
 
 
-def msg_check(template_name, length=[0]):
-    """Checks the length ID and returns the hex length corresponding to it
+def msg_check(template_id, length=[0]):
+    """Checks the template ID and returns the hex length corresponding to it
 
     Parameters
     ----------
-    template_name: int
-        The current position inside the data array
+    template_id: int
+        The current position inside the data list
     length:
-        The length name
+        The length of ACT PAR
 
     Returns
     -------
@@ -157,7 +158,7 @@ def msg_check(template_name, length=[0]):
         'ACT': UINT8 * 8,
         'ACT_FLAG': UINT16,
         'ACT_PAR': UINT8 * length[-1],
-    }.get(template_name, 0)
+    }.get(template_id, 0)
 
 
 def proto_check(proto):
