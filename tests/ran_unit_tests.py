@@ -64,6 +64,9 @@ from unittest.mock import patch, Mock
 
 class PacketProcessTest(unittest.TestCase):
 
+    def setUp(self):
+        pass
+
     def test_join_valid_array(self):
         """Verify array conversion is correct for correct array
 
@@ -245,7 +248,13 @@ class PacketProcessTest(unittest.TestCase):
             self.assertEqual(msg_check(name, act_par), msg_length[name])
 
     def test_msg_check_invalid(self):
-        print("hello")
+        """Verify Msg Check for invalid Template IDs
+
+        """
+        self.assertEqual(msg_check("AAA"), 0)
+        self.assertEqual(msg_check(123), 0)
+        self.assertEqual(msg_check(0x2), 0)
+        self.assertEqual(msg_check(None), 0)
 
     def test_version_valid(self):
         """Verify correct version is returned for valid input
@@ -262,48 +271,68 @@ class PacketProcessTest(unittest.TestCase):
         self.assertEqual(version_check(0x03), 0)
         self.assertEqual(version_check(0x02), 0)
         self.assertEqual(version_check(0x01), 0)
-        self.assertEqual(version_check('hello'), 0)
+        self.assertEqual(version_check('123'), 0)
         self.assertEqual(version_check(None), 0)
         self.assertEqual(version_check(3), 0)
 
-
-class DiffuseParserTest(unittest.TestCase):
-
     def test_proto_check_tcp(self):
+        """Verify protocol 6 is TCP
+
+        """
         proto = 6
         p = proto_check(proto)
         self.assertEqual(p, 'tcp')
 
     def test_proto_check_udp(self):
+        """Verify protocol 17 is UDP
+
+        """
         proto = 17
         p = proto_check(proto)
         self.assertEqual(p, 'udp')
 
-    def test_proto_check_other(self):
-        proto = 122
-        p = proto_check(proto)
-        self.assertEqual(p, None)
+    def test_proto_check_invalid(self):
+        """Verify any other protocol input gives None
 
-    def test_proto_check_invalid_string(self):
-        proto = 'hello'
-        p = proto_check(proto)
-        self.assertEqual(p, None)
+        """
+        self.assertEqual(proto_check('123'), None)
+        self.assertEqual(proto_check(123), None)
+        self.assertEqual(proto_check(None), None)
 
     def test_ipv4_to_int_valid_ip(self):
+        """Verify IPv4 correctly converted
+
+        """
         ip = '1.1.1.1'
-        i = ipv4_to_int(ip)
-        self.assertEqual(i, 16843009)
+        expected = 16843009
+        self.assertEqual(ipv4_to_int(ip), expected)
 
     def test_ipv4_to_int_invalid_input_int(self):
+        """Verify IPv4 correctly raises exception for invalid int
+
+        """
         ip = 0
         self.assertRaises(Exception, ipv4_to_int, ip)
 
     def test_ipv4_to_int_invalid_input_list(self):
+        """Verify IPv4 correctly raises exception for list input
+
+        """
         ip = ['1', '2']
         self.assertRaises(Exception, ipv4_to_int, ip)
 
     def test_ipv4_to_int_invalid_ip(self):
-        ip = 'a.b.c.d'
+        """Verify IPv4 correctly raises exception for other invalid IP
+
+        """
+        self.assertRaises(Exception, ipv4_to_int, 'a.b.c.d')
+        self.assertRaises(Exception, ipv4_to_int, None)
+
+    def test_ipv4_to_int_invalid_out_of_range(self):
+        """Verify IPv4 correctly raises exception for out of range IP
+
+        """
+        ip = '256.256.256.256'
         self.assertRaises(Exception, ipv4_to_int, ip)
 
 
@@ -325,7 +354,6 @@ class RanTest(unittest.TestCase):
                          'DST_IPV4': '01010101'
                          }
         x = RAN.msg_converter(parameter_set, max_ver)
-        print(x)
         if ('eth_type', 2048) not in x:
             self.fail('Wrong eth_type')
         if ('ip_proto', 17) not in x:
@@ -341,7 +369,7 @@ class RanTest(unittest.TestCase):
 
         pass
 
-    def test_socket_tcp(self):
+    """def test_socket_tcp(self):
         ran = RAN(app_manager.RyuApp)
         sock = ran.socket_tcp()
         ip = '0.0.0.0'
@@ -351,7 +379,7 @@ class RanTest(unittest.TestCase):
             self.fail('Wrong Address')
         if sock.proto != 0:
             self.fail('Wrong protocol')
-        pass
+        pass"""
 
     def test_time_now(self):
         x = time_now()
