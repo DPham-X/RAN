@@ -29,7 +29,9 @@
 # those of the authors and should not be interpreted as representing official
 # policies, either expressed or implied, of the FreeBSD Project.
 
+import socket
 from datetime import datetime
+
 # For Packet Process
 UINT32 = 4
 UINT16 = 2
@@ -68,6 +70,7 @@ def header_offset_check(key):
     ----------
     key: str of header
         The header section name
+
     Returns
     -------
         The hex length for the corresponding header or 0 if no match
@@ -122,18 +125,19 @@ def template_check(template_id):
     }.get(template_id, '0000')
 
 
-def msg_check(offset, template):
-    """Checks the template ID and returns the hex length corresponding to it
+def msg_check(template_name, length=[0]):
+    """Checks the length ID and returns the hex length corresponding to it
 
     Parameters
     ----------
-    offset: int
+    template_name: int
         The current position inside the data array
-    template:
-        The template name
+    length:
+        The length name
+
     Returns
     -------
-       The hex length for the corresponding template name or 0 if no match
+       The hex length for the corresponding length name or 0 if no match
 
     """
     return {
@@ -152,8 +156,8 @@ def msg_check(offset, template):
         'TIMEOUT': UINT16,
         'ACT': UINT8 * 8,
         'ACT_FLAG': UINT16,
-        'ACT_PAR': UINT8 * template[-1],
-    }.get(offset, 0)
+        'ACT_PAR': UINT8 * length[-1],
+    }.get(template_name, 0)
 
 
 def proto_check(proto):
@@ -163,6 +167,7 @@ def proto_check(proto):
     ----------
     proto: int
         The protocol number in the FCN/CN message
+
     Returns
     -------
         The protocol name if TCP/UDP else returns nothing
@@ -185,16 +190,17 @@ def version_check(version):
     ----------
     version: hex
         The OpenFlow version taken from the SDN switch 'hello' message
+
     Returns
     -------
         The OpenFlow version if match, else 0 for unsupported version
 
     """
     return {
-            4: 'OF13',  # 0x04 -> OF1.3
-            5: 'OF14',  # 0x05 -> OF1.4
-            6: 'OF15',  # 0x06 -> OF1.5
-        }.get(version, 0)
+        4: 'OF13',  # 0x04 -> OF1.3
+        5: 'OF14',  # 0x05 -> OF1.4
+        6: 'OF15',  # 0x06 -> OF1.5
+    }.get(version, 0)
 
 
 def time_now():
@@ -210,25 +216,35 @@ def time_now():
     return cur_time
 
 
-def ipv4_to_int(string):
+def ipv4_to_int(ip_address):
     """Converts an IPv4 string to integer
 
     Parameters
     ----------
-    string: str eg. '1.1.1.1'
+    ip_address: str eg. '1.1.1.1'
         The IPv4 string
+
     Returns
     -------
+    integer_ipv4_address: int
         The integer representation of the IPv4 string
 
     """
+    # Check IP address using socket
     try:
-        ip = string.split('.')
+        socket.inet_aton(ip_address)
+    except socket.error as e:
+        raise Exception('Invalid input IP:', e)
+
+    # Split IP address and convert to int
+    try:
+        ip = ip_address.split('.')
         assert len(ip) == 4
-        i = 0
+        integer_ipv4_address = 0
         for b in ip:
             b = int(b)
-            i = (i << 8) | b
+            integer_ipv4_address = (integer_ipv4_address << 8) | b
     except Exception as e:
-        raise Exception('Invalid input IP:', e)
-    return i
+        raise Exception('Couldn\'t convert IP:', e)
+    else:
+        return integer_ipv4_address
