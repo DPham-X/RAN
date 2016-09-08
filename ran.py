@@ -112,12 +112,14 @@ class RAN(app_manager.RyuApp):
         # Offset used to know location when parsing a RAP message.
         self.offset = 0
 
-        # List of valid class names that have a configuration set, including a
-        # required 'default' class
+        # Default config settings
         self.port = 5000
         self.host = ''
         self.table_id = 0
         self.protocol = 'TCP'
+
+        # List of valid class names that have a configuration set, including a
+        # required 'default' class
         self.class_name = self.import_config()
 
         # Initialises the Diffuse Parser module to receive any RAP messages.
@@ -859,17 +861,18 @@ class RAN(app_manager.RyuApp):
                                                        prec_level=dscp_no)]
                 self.logger.info("%s Sending MeterMod: Type = DSCP",
                                  time_now())
-
             else:
-                bands = []
-            # Serialise meter mod/add command
-            meter_mod = parser.OFPMeterMod(datapath=datapath,
-                                           command=ofproto.OFPMC_ADD,
-                                           flags=ofproto.OFPMF_KBPS,
-                                           meter_id=meter_id,
-                                           bands=bands)
-            # Send meter mod to SDN switch
-            datapath.send_msg(meter_mod)
+                self.logger.error("%s Meter Type not defined",
+                                  time_now())
+            if bands is not None:
+                # Serialise meter mod/add command
+                meter_mod = parser.OFPMeterMod(datapath=datapath,
+                                               command=ofproto.OFPMC_ADD,
+                                               flags=ofproto.OFPMF_KBPS,
+                                               meter_id=meter_id,
+                                               bands=bands)
+                # Send meter mod to SDN switch
+                datapath.send_msg(meter_mod)
 
     def add_flow_metered(
             self,
