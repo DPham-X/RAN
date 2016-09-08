@@ -37,7 +37,7 @@ ryu-manager ./ran.py
 Information
 -----------
 - Compatible with ryu.app.simple_switch and ryu.app.rest_router running on Open
-    vSwitch OpenFlow Table 0
+    vSwitch OpenFlow Table 1
 - Supports Multi Version Switches
     - OpenFlow 1.3
     - OpenFlow 1.4
@@ -105,6 +105,9 @@ class RAN(app_manager.RyuApp):
 
         # Contains the datapaths for each connected SDN switch
         self.datapaths = {}
+
+        # Holds Template List
+        self.template = []
 
         # Offset used to know location when parsing a RAP message.
         self.offset = 0
@@ -177,6 +180,7 @@ class RAN(app_manager.RyuApp):
             sock = self.listen_tcp_socket()
         elif self.protocol == 'UDP':
             exit('UDP Unsupported')
+            # TODO: Placeholder for UDP socket
             sock = self.listen_udp_socket()
 
         self.logger.info("%s RAN initiated", time_now())
@@ -430,10 +434,10 @@ class RAN(app_manager.RyuApp):
         self.offset = 0
 
         # Initialise variables
-        template = []
         msg = {}
         decoded_sets = []
         msg_counter = 0
+        template = self.template
 
         # Static hex to int length
         uint32 = 4
@@ -463,6 +467,10 @@ class RAN(app_manager.RyuApp):
             set_len: hex str
                 The length of this set
 
+            Returns
+            -------
+            self.offset:
+                increases offset after parsing through header
             """
             # Make header, parsing through raw bin_data
             ver = join(msg=split_msg, offset=self.offset, hex_len=8),
@@ -478,12 +486,14 @@ class RAN(app_manager.RyuApp):
             set_len = join(msg=split_msg, offset=self.offset, hex_len=uint16),
             self.offset += header_offset_check('set_len')
 
-        # Get Template SET ID and Length
+        # Get next SET ID and Length
         header_set_id = Header_.set_id[0]
         header_set_len = int(Header_.set_len[0], 16) - 10
 
         # Decode the template if ID is 1
         if header_set_id == '0001':
+            # Clean template
+            template = []
             template_len = header_set_len
 
             template.append('T_ID')
@@ -491,6 +501,7 @@ class RAN(app_manager.RyuApp):
             template.append('T_FLAG')
             self.offset += uint16
 
+            # Append Template ID to ordered list
             for i in range(4, template_len, 2):
                 template_id = join(
                     msg=split_msg, offset=self.offset, hex_len=uint16)
@@ -499,6 +510,8 @@ class RAN(app_manager.RyuApp):
                 if template_name not in ['CLASS_NAME', 'ACT', 'ACT_PAR']:
                     template.append(template_name)
                     self.offset += uint16
+                # Special Case for CLASS_NAME, ACT, ACT_PAR
+                # Append associated variables
                 else:
                     template.append(template_name)
                     self.offset += uint16
@@ -508,50 +521,66 @@ class RAN(app_manager.RyuApp):
                                  hex_len=uint16), 16))
                     self.offset += uint16
 
-        # Get next set ID
-        set_id = int(
-            join(
-                msg=split_msg,
-                offset=self.offset,
-                hex_len=uint16),
-            16)
-        self.offset += uint16
+            # Get next SET ID and SET length
+            set_id = int(
+                join(
+                    msg=split_msg,
+                    offset=self.offset,
+                    hex_len=uint16),
+                16)
+            self.offset += uint16
 
-        msg_set_len = int(
-            join(
-                msg=split_msg,
-                offset=self.offset,
-                hex_len=uint16),
-            16)
-        self.offset += uint16
+            msg_set_len = int(
+                join(
+                    msg=split_msg,
+                    offset=self.offset,
+                    hex_len=uint16),
+                16)
+            self.offset += uint16
 
-        # Parse through parameter set using the template ID
-        while True:
-            if set_id == 256:
-                for i, template_id in enumerate(template):
-                    msg[template[i]] = self.rap_msg_decoder(template_id,
-                                                            split_msg,
-                                                            set_id,
-                                                            msg_set_len)
-                    if not template_id == 'CLASS_TAG':
-                        self.offset += msg_check(template[i], template)
+        # SET ID and length if no template
+        else:
+            set_id = int(header_set_id, 16)
+            msg_set_len = header_set_len
+
+        # Parse through parameter set using previous Template ID
+        if not template == []:
+            while True:
+                if set_id == 256:
+                    for i, template_id in enumerate(template):
+                        # Associate Parameter set with Template ID
+                        msg[template[i]] = self.rap_msg_decoder(template_id,
+                                                                split_msg,
+                                                                set_id,
+                                                                msg_set_len)
+                        if not template_id == 'CLASS_TAG':
+                            self.offset += msg_check(template[i], template)
+                        else:
+                            class_len = int(msg['CLASS_TAG'][0], 16)
+                            self.offset += uint8 * class_len
+                # Store parsed parameters
+                decoded_sets.append(copy.deepcopy(msg))
+                # End parse when next SET ID isn't 256
+                try:
+                    if int(join(msg=split_msg,
+                                offset=self.offset,
+                                hex_len=uint16), 16) == 256:
+                        continue
                     else:
-                        class_len = int(msg['CLASS_TAG'][0], 16)
-                        self.offset += uint8 * class_len
-            decoded_sets.append(copy.deepcopy(msg))
-            try:
-                if int(join(msg=split_msg,
-                            offset=self.offset,
-                            hex_len=uint16), 16) == 256:
-                    continue
-                else:
+                        break
+                except ValueError:
                     break
-            except ValueError:
-                break
-            finally:
-                self.offset += uint32
-                msg_counter += 1
-        return decoded_sets, msg_counter
+                finally:
+                    self.offset += uint32
+                    msg_counter += 1
+            # Store Template
+            self.template = template
+            return decoded_sets, msg_counter
+        else:
+            self.logger.error("%s No Template found, flow ignored", time_now())
+            decoded_sets = 0
+            msg_counter = 0
+            return decoded_sets, msg_counter
 
     def add_flow(self, datapath, timeout, priority, instruction, load):
         """Sends add flow messages to the SDN Switch
@@ -911,7 +940,6 @@ class RAN(app_manager.RyuApp):
         uint32 = 4
         uint16 = 2
         uint8 = 1
-
         # Get class name length
         c_tag = 0
         if msg_name == 'CLASS_TAG':
