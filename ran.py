@@ -28,7 +28,7 @@
 # The views and conclusions contained in the software and documentation are
 # those of the authors and should not be interpreted as representing official
 # policies, either expressed or implied, of the FreeBSD Project.
-"""Ryu Action Node v1.01 - RYU based application
+"""Ryu Action Node v1.01 - RYU Northbound application
 
 Usage
 -----
@@ -36,14 +36,14 @@ ryu-manager ./ran.py
 
 Information
 -----------
-- Compatible with ryu.app.simple_switch and ryu.app.rest_router running on Open
-    vSwitch OpenFlow Table 1
+- Compatible with modified simple_switch and rest_router running on Open
+    vSwitch OpenFlow
 - Supports Multi Version Switches
     - OpenFlow 1.3
     - OpenFlow 1.4
     - OpenFlow 1.5 (Limited, no meters)
 - Supports Multiple Switches
-- Support Multi FCN/CN Packets
+- Support Multi flow embedded FCN/CN Packets
 
 """
 # Import internal libraries
