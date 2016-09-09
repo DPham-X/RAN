@@ -35,18 +35,6 @@
 """
 
 import unittest
-import threading
-
-from ryu.base import app_manager
-from ryu.controller import ofp_event
-from ryu.controller.handler import CONFIG_DISPATCHER
-from ryu.controller.handler import MAIN_DISPATCHER
-from ryu.controller.handler import set_ev_cls
-from ryu.lib import hub
-from ryu.ofproto import ofproto_v1_3
-from ryu.ofproto import ofproto_v1_4
-from ryu.ofproto import ofproto_v1_5
-
 import sys
 sys.path.append("..")
 
@@ -59,7 +47,6 @@ from lib.packet_process import header_offset_check
 from lib.packet_process import template_check
 from lib.packet_process import msg_check
 from ran import *
-from unittest.mock import patch, Mock
 
 
 class PacketProcessTest(unittest.TestCase):
@@ -339,13 +326,15 @@ class PacketProcessTest(unittest.TestCase):
 class RanTest(unittest.TestCase):
 
     def setUp(self):
-        self.ran = RAN()
         pass
 
     def tearDown(self):
         pass
 
-    def test_message_converter_udp(self):
+    def test_message_converter(self):
+        """Verify message converter works with all parameters
+
+        """
         max_ver = "OF13"
         parameter_set = {'PROTO': '11',
                          'SRC_PORT': '0001',
@@ -369,21 +358,13 @@ class RanTest(unittest.TestCase):
 
         pass
 
-    """def test_socket_tcp(self):
-        ran = RAN(app_manager.RyuApp)
-        sock = ran.socket_tcp()
-        ip = '0.0.0.0'
-        port = 5000
+    def test_class_name_conversion(self):
+        """Verify hex string converts successfully to ASCII
 
-        if ip and port not in sock:
-            self.fail('Wrong Address')
-        if sock.proto != 0:
-            self.fail('Wrong protocol')
-        pass"""
-
-    def test_time_now(self):
-        x = time_now()
-        pass
+        """
+        flow_set = {'CLASS_TAG': [0, '48656c6c6f']}
+        class_name = RAN.class_name_conversion(flow_set)
+        self.assertEqual(class_name, b'Hello')
 
 if __name__ == '__main__':
     unittest.main()
