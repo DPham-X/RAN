@@ -88,7 +88,8 @@ class RAN(app_manager.RyuApp):
 
     """
     # Supported OpenFlow Versions
-    OFP_VERSIONS = [ofproto_v1_2.OFP_VERSION,
+    OFP_VERSIONS = [ofproto_v1_0.OFP_VERSION,
+                    ofproto_v1_2.OFP_VERSION,
                     ofproto_v1_3.OFP_VERSION,
                     ofproto_v1_4.OFP_VERSION,
                     ofproto_v1_5.OFP_VERSION]
