@@ -2,6 +2,14 @@ RAN v1.01
 ==========
 The Ryu Action Node (RAN) is a prioritisation tool for implementing Remote Action Protocol (RAP) messages on the SDN network.
 
+NEW FEATURES IN THIS VERSION
+----------------------------
+
+- RAN separated from Simple_Switch_13
+- Supports OF1.3 and OF1.4
+- Supports Multi-Message
+- Supports Multi-Version
+
 INTRODUCTION
 ------------
 This is the README for the RAN v1.01
@@ -11,12 +19,13 @@ Example config files are provided.
 
 For more information regarding the RAN and FCN refer to the technical report here:
 
-    http://caia.swin.edu.au/reports/160429A/CAIA-TR-160429A.pdf
-    http://caia.swin.edu.au/reports/160422A/CAIA-TR-160422A.pdf
+[Supporting SDN and OpenFlow within DIFFUSE](http://caia.swin.edu.au/reports/160429A/CAIA-TR-160429A.pdf)
+
+[Developing a Fake Classifier Node for DIFFUSE](http://caia.swin.edu.au/reports/160422A/CAIA-TR-160422A.pdf)
 
 For an updated RAN check:
 
-    https://github.com/XykotiC/RAN/
+   <http://caia.swin.edu.au/urp/diffuse/sdn>
 
 CONFIG FILE
 -----------
@@ -24,7 +33,13 @@ The RAN will import class configurations from a conf.ini file in the RAN directo
 An example conf.ini file has been provided.
 
 The conf.ini will look similar to this:
-    
+
+    [SETTINGS]
+    port = 5000
+    host =
+    table_id = 0
+    protocol = TCP
+
     [default]
     queue = 0
     
@@ -37,17 +52,9 @@ The conf.ini will look similar to this:
     [class2]
     queue = 1
     type = dscp
+    dscp = 3
     meterid = 2
     rate = 30000
-    
-   
-NEW FEATURES IN THIS VERSION
-----------------------------
-
-- RAN separated from Simple_Switch_13
-- Supports OF1.3 and OF1.4
-- Supports Multi-Message
-- Supports Multi-Version
 
 RYU ACTION NODE TEST BED
 ------------------------
@@ -66,87 +73,101 @@ Ryu Prerequisites
 
 INSTALLATION
 ------------
-__INSTALLING RYU__
+### INSTALLING RYU
+Get the latest release of the SDN DIFFUSE Ryu Action node from: 
 
-    $ git clone https://github.com/XykotiC/RAN.git
+<http://caia.swin.edu.au/urp/diffuse/sdn>
     
-From the RYU web page:
+The latest release of RYU can be found on:
 
-    https://osrg.github.io/ryu/
+<https://osrg.github.io/ryu/>
 
-Download and build
+### Download and build
 
 Ryu can be downloaded from pip or Github.
 
+```sh
     $ pip install ryu
+```
 
 or
-
+```sh
     $ git clone git://github.com/osrg/ryu.git
     $ cd ryu
     $ python ./setup.py install
+```
 
 Installing Prerequisites
 
+```sh
     $ sudo apt-get update
     $ sudo apt-get install python-eventlet python-routes python-webob python-paramiko
+```
 
 __INSTALLING THE RAN__
 
-    $ git clone https://github.com/XykotiC/RAN.git
+```sh
+    $ tar -zxvf RAN-1.01.tar.gz
+```
 
 RUNNING RYU WITH THE RAN
 ------------------------
 
-    $ cd RAN
+```sh
+    $ cd RAN-1.01
     $ ryu-manager ./ran.py
+```
 
 UPDATING
 --------
 __Ryu Updates__
-
+```sh
     $ cd ryu
     $ git pull
-
-__RAN Updates__
-
-    $ cd RAN
-    $ git pull
+```
 
 RAN TESTBED
 -----------
 1. Change the directory to the RAN
 
-    `$ cd RAN`
+```sh
+    $ cd RAN-1.01
+```
     
 2. First configure the `conf.ini` file
 3. Run the ryu-manager with the RAN using
 
-    `$ ryu-manager ./ran.py`
+```sh
+    $ ryu-manager ./ran.py
+```
+
+Also Included are the Modified Simple Switch and REST Route Northbound Applications running on SDN Flow Table 1.
+### Simple Switch
+The Simple Switch Application does not require any configuration.
+```sh
+    $ ryu-manager ./ran.py ./tests/mod_simple_switch_13.py
+```
+
+### REST Router
+The REST Router Application will require setup configuration. See [Ryu SDN Framework](http://osrg.github.io/ryu/resources.html#books) ebook for example.
+```sh
+    $ ryu-manager ./ran.py ./tests/mod_rest_router.py
+```
+
 
 
 COMMANDS
 --------
 __Open vSwitch 2.3.0 Commands:__
+```sh
+    # Set bridge OpenFlow version
+    $ ovs-vsctl set Bridge s1 protocol=OpenFlow13
+    # Dump flow table rules
+    $ ovs-ofctl -O OpenFlow13 dump-flows s1 
+    # Dump flow meters
+    $ ovs-ofctl -O OpenFlow13 dump-meters s1
+```
 
-`ovs-vsctl set Bridge s1 protocol=OpenFlow13`
-
-`ovs-ofctl -O OpenFlow13 s1 dump-flows`
-
-__Mininet 2.2.1 Commands__
-
-GUI Setup:
-     
-    # Clear all OpenFlow controllers
-    $ sudo mn -c
-    # Start Mininet GUI
-    $ sudo /mininet/examples/miniedit
-    
-    # Open up controller, switch, host
-    $ xterm c0
-    $ xterm s1
-    $ xterm h1
-    
 LICENSE
 -------
 
