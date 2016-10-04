@@ -94,14 +94,16 @@ class RAN(app_manager.RyuApp):
                     ofproto_v1_4.OFP_VERSION,
                     ofproto_v1_5.OFP_VERSION]
 
-    # Configuration Settings Store here
+    # Configuration Settings Stored here
     config = None
 
     def __init__(self, *args, **kwargs):
         super(RAN, self).__init__(*args, **kwargs)
 
         # The supported RAN OpenFlow versions
-        self.ofp_ver = ['OF13', 'OF14', 'OF15']
+        self.ofp_ver = ['OF10', 'OF12', 'OF13', 'OF14', 'OF15']
+        # Meter support for OpenFlow versions
+        self.ofp_ver_meter = ['OF13', 'OF14']
 
         # Contains the datapaths for each connected SDN switch
         self.datapaths = {}
@@ -844,7 +846,7 @@ class RAN(app_manager.RyuApp):
         ofp_ver = version_check(datapath.ofproto.OFP_VERSION)
 
         # Send Meter mod message for compatible version switches
-        if ofp_ver in ['OF13', 'OF14']:
+        if ofp_ver in self.ofp_ver_meter:
             # Create DROP meter for meter type 'drop'
             if meter_type == 'drop':
                 bands = [parser.OFPMeterBandDrop(rate=rate,
@@ -1018,8 +1020,7 @@ class RAN(app_manager.RyuApp):
         datapath.send_msg(flow_miss_mod)
         datapath.send_msg(next_table_mod)
 
-    @staticmethod
-    def msg_converter(flow_set, max_ver):
+    def msg_converter(self, flow_set, max_ver):
         """Extract the 5-tuple parameters and convert them from hex
 
         Parameters
@@ -1054,7 +1055,7 @@ class RAN(app_manager.RyuApp):
         ipv4_dst = socket.inet_ntoa(
             struct.pack(">L", int(flow_set['DST_IPV4'], 16)))
 
-        if max_ver in ['OF10', 'OF11', 'OF13', 'OF14', 'OF15']:
+        if max_ver in self.ofp_ver:
             # Append Source of Destination IP if they exist
             eth_type = 0x0800
             match_parameters.extend([('eth_type', eth_type)])
