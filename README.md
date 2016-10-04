@@ -27,35 +27,6 @@ For an updated RAN check:
 
    <http://caia.swin.edu.au/urp/diffuse/sdn>
 
-CONFIG FILE
------------
-The RAN will import class configurations from a conf.ini file in the RAN directory
-An example conf.ini file has been provided.
-
-The conf.ini will look similar to this:
-
-    [SETTINGS]
-    port = 5000
-    host =
-    table_id = 0
-    protocol = TCP
-
-    [default]
-    queue = 0
-    
-    [class1]
-    queue = 0
-    type = drop
-    meterid = 1
-    rate = 20000
-    
-    [class2]
-    queue = 1
-    type = dscp
-    dscp = 3
-    meterid = 2
-    rate = 30000
-
 RYU ACTION NODE TEST BED
 ------------------------
 RAN Requirements:
@@ -109,6 +80,35 @@ __INSTALLING THE RAN__
 ```sh
     $ tar -zxvf RAN-1.01.tar.gz
 ```
+CONFIG FILE
+-----------
+The RAN will import class configurations from a conf.ini file in the RAN directory
+An example conf.ini file has been provided.
+
+The conf.ini will look similar to this:
+
+    [SETTINGS]
+    port = 5000
+    host =
+    table_id = 0
+    protocol = TCP
+
+    [default]
+    queue = 0
+    
+    [class1]
+    queue = 0
+    type = drop
+    meterid = 1
+    rate = 20000
+    
+    [class2]
+    queue = 1
+    type = dscp
+    dscp = 3
+    meterid = 2
+    rate = 30000
+
 
 RUNNING RYU WITH THE RAN
 ------------------------
