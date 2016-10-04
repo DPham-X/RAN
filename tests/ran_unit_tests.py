@@ -353,9 +353,9 @@ class RanTest(unittest.TestCase):
         if ('udp_dst', 1) not in x:
             self.fail('Wrong udp_dst')
         if ('ipv4_src', 16843009) not in x:
-            self.fail('wrong ipv4_src')
+            self.fail('Wrong ipv4_src')
         if ('ipv4_dst', 16843009) not in x:
-            self.fail('wrong ipv4_dst')
+            self.fail('Wrong ipv4_dst')
 
         pass
 
