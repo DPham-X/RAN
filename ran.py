@@ -68,7 +68,7 @@ from ryu.ofproto import ofproto_v1_3
 from ryu.ofproto import ofproto_v1_4
 from ryu.ofproto import ofproto_v1_5
 
-# Import RAN required functions
+# Import RAN required functions'OF10',
 from lib.packet_process import ipv4_to_int
 from lib.packet_process import proto_check
 from lib.packet_process import header_offset_check
@@ -101,7 +101,7 @@ class RAN(app_manager.RyuApp):
         super(RAN, self).__init__(*args, **kwargs)
 
         # The supported RAN OpenFlow versions
-        self.ofp_ver = ['OF10', 'OF12', 'OF13', 'OF14', 'OF15']
+        self.ofp_ver = ['OF12', 'OF13', 'OF14', 'OF15']
         # Meter support for OpenFlow versions
         self.ofp_ver_meter = ['OF13', 'OF14']
 
