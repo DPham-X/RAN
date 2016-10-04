@@ -343,14 +343,15 @@ class RAN(app_manager.RyuApp):
 
                         # Add meter/flow on SDN Switch
                         if meter_config['meter_id'] is not None:
-                            self.create_meter(datapath=datapath,
+                            err = self.create_meter(datapath=datapath,
                                               meter_config=meter_config)
                             # Send flow
-                            self.add_flow_metered(datapath=datapath,
-                                                  timeout=timeout,
-                                                  priority=priority,
-                                                  load=load,
-                                                  meter_config=meter_config)
+                            if err == 0:
+                                self.add_flow_metered(datapath=datapath,
+                                                      timeout=timeout,
+                                                      priority=priority,
+                                                      load=load,
+                                                      meter_config=meter_config)
                         else:
                             # Create instruction
                             if action is not None:
@@ -872,9 +873,12 @@ class RAN(app_manager.RyuApp):
                                                bands=bands)
                 # Send meter mod to SDN switch
                 datapath.send_msg(meter_mod)
+                return 0
+
         else:
             self.logger.error("%s MeterMod not supported for this OF version",
                               time_now())
+            return 1
 
     def add_flow_metered(self,
                          datapath,
