@@ -194,10 +194,12 @@ def version_check(version):
 
     Returns
     -------
-        The OpenFlow version if match, else 0 for unsupported version
+        The OpenFlow version if match, else 0 for unknown version
 
     """
     return {
+        1: 'OF10',  # 0x01 -> OF1.0
+        3: 'OF12',  # 0x03 -> OF1.2
         4: 'OF13',  # 0x04 -> OF1.3
         5: 'OF14',  # 0x05 -> OF1.4
         6: 'OF15',  # 0x06 -> OF1.5

@@ -68,7 +68,7 @@ from ryu.ofproto import ofproto_v1_3
 from ryu.ofproto import ofproto_v1_4
 from ryu.ofproto import ofproto_v1_5
 
-# Import RAN required libraries
+# Import RAN required functions
 from lib.packet_process import ipv4_to_int
 from lib.packet_process import proto_check
 from lib.packet_process import header_offset_check
@@ -168,9 +168,6 @@ class RAN(app_manager.RyuApp):
         self.logger.debug('Datapath \'%s\'', self.datapaths)
 
     def parser_initialiser(self):
-
-
-
         """Initialises the parser for Fake Classifier Node and Classifier
         Nodes' RAP Protocol messages
 
@@ -185,8 +182,6 @@ class RAN(app_manager.RyuApp):
             sock = self.listen_tcp_socket()
         elif self.protocol == 'UDP':
             exit('UDP Unsupported')
-            # TODO: Placeholder for UDP socket
-            sock = self.listen_udp_socket()
 
         self.logger.info("%s RAN initiated", time_now())
         while True:
@@ -876,6 +871,9 @@ class RAN(app_manager.RyuApp):
                                                bands=bands)
                 # Send meter mod to SDN switch
                 datapath.send_msg(meter_mod)
+        else:
+            self.logger.error("%s MeterMod not supported for this OF version",
+                              time_now())
 
     def add_flow_metered(self,
                          datapath,
@@ -921,15 +919,15 @@ class RAN(app_manager.RyuApp):
                       instruction=inst,
                       load=load)
 
-    def rap_msg_decoder(self, msg_name, split_msg, msg_id, msg_len):
+    def rap_msg_decoder(self, msg_name, s_msg, msg_id, msg_len):
         """Decodes the parameter set using template names
 
         Parameters
         ----------
         msg_name:
             The current template name
-        split_msg: list
-            The RAP array in hex
+        s_msg: list
+            The RAP msg
         msg_id:
             The SET ID
         msg_len:
@@ -945,32 +943,33 @@ class RAN(app_manager.RyuApp):
         uint32 = 4
         uint16 = 2
         uint8 = 1
+
         # Get class name length
         c_tag = 0
         if msg_name == 'CLASS_TAG':
-            c_tag = int(split_msg[self.offset], 16)
+            c_tag = int(s_msg[self.offset], 16)
 
         # Return decoded values corresponding to the template name
         return {
             'T_ID': msg_id,
             'T_FLAG': msg_len,
-            'CLASS_NAME': join(msg=split_msg, offset=self.offset, hex_len=uint64),
-            'MSG_TYPE': join(msg=split_msg, offset=self.offset, hex_len=uint8),
-            'SRC_IPV4': join(msg=split_msg, offset=self.offset, hex_len=uint32),
-            'DST_IPV4': join(msg=split_msg, offset=self.offset, hex_len=uint32),
-            'SRC_PORT': join(msg=split_msg, offset=self.offset, hex_len=uint16),
-            'DST_PORT': join(msg=split_msg, offset=self.offset, hex_len=uint16),
-            'PROTO': join(msg=split_msg, offset=self.offset, hex_len=uint8),
-            'PKT_COUNT': join(msg=split_msg, offset=self.offset, hex_len=uint32),
-            'KBYTE_COUNT': join(msg=split_msg, offset=self.offset, hex_len=uint32),
-            'CLASS_TAG': {0: join(msg=split_msg, offset=self.offset, hex_len=uint8),
-                          1: join(msg=split_msg, offset=self.offset + 1, hex_len=c_tag - 2),
-                          2: join(msg=split_msg, offset=self.offset + c_tag - 1, hex_len=1)},
-            'TIME_TYPE': join(msg=split_msg, offset=self.offset, hex_len=uint8),
-            'TIMEOUT': join(msg=split_msg, offset=self.offset, hex_len=uint16),
-            'ACT': join(msg=split_msg, offset=self.offset, hex_len=uint64),
-            'ACT_FLAG': join(msg=split_msg, offset=self.offset, hex_len=uint16),
-            'ACT_PAR': join(msg=split_msg, offset=self.offset, hex_len=16),
+            'CLASS_NAME': join(msg=s_msg, offset=self.offset, hex_len=uint64),
+            'MSG_TYPE': join(msg=s_msg, offset=self.offset, hex_len=uint8),
+            'SRC_IPV4': join(msg=s_msg, offset=self.offset, hex_len=uint32),
+            'DST_IPV4': join(msg=s_msg, offset=self.offset, hex_len=uint32),
+            'SRC_PORT': join(msg=s_msg, offset=self.offset, hex_len=uint16),
+            'DST_PORT': join(msg=s_msg, offset=self.offset, hex_len=uint16),
+            'PROTO': join(msg=s_msg, offset=self.offset, hex_len=uint8),
+            'PKT_COUNT': join(msg=s_msg, offset=self.offset, hex_len=uint32),
+            'KBYTE_COUNT': join(msg=s_msg, offset=self.offset, hex_len=uint32),
+            'CLASS_TAG': {0: join(msg=s_msg, offset=self.offset, hex_len=uint8),
+                          1: join(msg=s_msg, offset=self.offset + 1, hex_len=c_tag - 2),
+                          2: join(msg=s_msg, offset=self.offset + c_tag - 1, hex_len=1)},
+            'TIME_TYPE': join(msg=s_msg, offset=self.offset, hex_len=uint8),
+            'TIMEOUT': join(msg=s_msg, offset=self.offset, hex_len=uint16),
+            'ACT': join(msg=s_msg, offset=self.offset, hex_len=uint64),
+            'ACT_FLAG': join(msg=s_msg, offset=self.offset, hex_len=uint16),
+            'ACT_PAR': join(msg=s_msg, offset=self.offset, hex_len=16),
         }.get(msg_name)
 
     @staticmethod
@@ -1055,7 +1054,7 @@ class RAN(app_manager.RyuApp):
         ipv4_dst = socket.inet_ntoa(
             struct.pack(">L", int(flow_set['DST_IPV4'], 16)))
 
-        if max_ver in ['OF13', 'OF14', 'OF15']:
+        if max_ver in ['OF10', 'OF11', 'OF13', 'OF14', 'OF15']:
             # Append Source of Destination IP if they exist
             eth_type = 0x0800
             match_parameters.extend([('eth_type', eth_type)])
