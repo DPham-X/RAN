@@ -57,16 +57,16 @@ The latest release of RYU can be found on:
 
 Installing Ryu Prerequisites
 
-```sh
-    $ sudo apt-get update
-    $ sudo apt-get install python-eventlet python-routes python-webob python-paramiko
-```
+   ```sh
+       $ sudo apt-get update
+       $ sudo apt-get install python-eventlet python-routes python-webob python-paramiko
+   ```
 
 Ryu can be downloaded from pip or Github.
 
-```sh
-    $ pip install ryu
-```
+   ```sh
+       $ pip install ryu
+   ```
 
 or
 
@@ -117,43 +117,43 @@ UPDATING
 --------
 __Ryu Updates__
 
-```sh
-    $ cd ryu
-    $ git pull
-```
+   ```sh
+       $ cd ryu
+       $ git pull
+   ```
 
 RAN TESTBED
 -----------
 
 1. Change the directory to the RAN
 
-```sh
-    $ cd ran-1.01
-```
+   ```sh
+       $ cd ran-1.01
+   ```
     
 2. Configure the `conf.ini` file as desired
 
 3. Run the ryu-manager with the RAN using
 
-```sh
-    $ ryu-manager ./ran.py
-```
+   ```sh
+       $ ryu-manager ./ran.py
+   ```
 
 Also Included are the Simple Switch and REST Route Northbound Applications running on SDN Flow Table 1. To run these applications concurrently with the RAN, just add the path to file.
 
 ### Simple Switch
 The Simple Switch Application does not require any additional configuration.
 
-```sh
-    $ ryu-manager ./ran.py ./tests/mod_simple_switch_13.py
-```
+   ```sh
+       $ ryu-manager ./ran.py ./tests/mod_simple_switch_13.py
+   ```
 
 ### REST Router
 The REST Router Application will require additional setup configurations such as IP and routes. Refer to the [Ryu SDN Framework](http://osrg.github.io/ryu/resources.html#books) ebook for examples.
 
-```sh
-    $ ryu-manager ./ran.py ./tests/mod_rest_router.py
-```
+   ```sh
+       $ ryu-manager ./ran.py ./tests/mod_rest_router.py
+   ```
 
 
 
