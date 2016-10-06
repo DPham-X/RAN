@@ -128,7 +128,7 @@ RAN TESTBED
 1. Change the directory to the RAN
 
    ```sh
-       $ cd ran-1.01
+   $ cd ran-1.01
    ```
     
 2. Configure the `conf.ini` file as desired
@@ -136,7 +136,7 @@ RAN TESTBED
 3. Run the ryu-manager with the RAN using
 
    ```sh
-       $ ryu-manager ./ran.py
+   $ ryu-manager ./ran.py
    ```
 
 Also Included are the Simple Switch and REST Route Northbound Applications running on SDN Flow Table 1. To run these applications concurrently with the RAN, just add the path to file.
