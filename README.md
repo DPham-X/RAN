@@ -23,6 +23,8 @@ For more information regarding the RAN and FCN refer to the technical report her
 
 [Developing a Fake Classifier Node for DIFFUSE](http://caia.swin.edu.au/reports/160422A/CAIA-TR-160422A.pdf)
 
+[The Ryu Action Node v1.01](http://caia.swin.edu.au/reports/161006A/CAIA-TR-161006A.pdf)
+
 For an updated RAN check:
 
    <http://caia.swin.edu.au/urp/diffuse/sdn>
