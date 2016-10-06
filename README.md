@@ -77,10 +77,12 @@ or
 ```
 
 __INSTALLING THE RAN__
-Just download RAN-1.01.tar.gz and uncompress it.
+
+Just download ran-1.01.tar.gz and uncompress it.
 
 ```sh
-    $ tar -zxvf RAN-1.01.tar.gz
+    $ tar -zxvf ran-1.01.tar.gz
+    $ cd ran-1.01
 ```
 CONFIG FILE
 -----------
@@ -111,14 +113,6 @@ The conf.ini will look similar to this:
     meterid = 2
     rate = 30000
 
-RUNNING RYU WITH THE RAN
-------------------------
-
-```sh
-    $ cd RAN-1.01
-    $ ryu-manager ./ran.py
-```
-
 UPDATING
 --------
 __Ryu Updates__
@@ -133,10 +127,11 @@ RAN TESTBED
 1. Change the directory to the RAN
 
 ```sh
-    $ cd RAN-1.01
+    $ cd ran-1.01
 ```
     
 2. Configure the `conf.ini` file as desired
+
 3. Run the ryu-manager with the RAN using
 
 ```sh
