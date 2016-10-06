@@ -55,6 +55,13 @@ The latest release of RYU can be found on:
 
 ### Download and build
 
+Installing Ryu Prerequisites
+
+```sh
+    $ sudo apt-get update
+    $ sudo apt-get install python-eventlet python-routes python-webob python-paramiko
+```
+
 Ryu can be downloaded from pip or Github.
 
 ```sh
@@ -62,20 +69,15 @@ Ryu can be downloaded from pip or Github.
 ```
 
 or
+
 ```sh
     $ git clone git://github.com/osrg/ryu.git
     $ cd ryu
     $ python ./setup.py install
 ```
 
-Installing Prerequisites
-
-```sh
-    $ sudo apt-get update
-    $ sudo apt-get install python-eventlet python-routes python-webob python-paramiko
-```
-
 __INSTALLING THE RAN__
+Just download RAN-1.01.tar.gz and uncompress it.
 
 ```sh
     $ tar -zxvf RAN-1.01.tar.gz
@@ -109,7 +111,6 @@ The conf.ini will look similar to this:
     meterid = 2
     rate = 30000
 
-
 RUNNING RYU WITH THE RAN
 ------------------------
 
@@ -121,6 +122,7 @@ RUNNING RYU WITH THE RAN
 UPDATING
 --------
 __Ryu Updates__
+
 ```sh
     $ cd ryu
     $ git pull
@@ -134,22 +136,25 @@ RAN TESTBED
     $ cd RAN-1.01
 ```
     
-2. First configure the `conf.ini` file
+2. Configure the `conf.ini` file as desired
 3. Run the ryu-manager with the RAN using
 
 ```sh
     $ ryu-manager ./ran.py
 ```
 
-Also Included are the Modified Simple Switch and REST Route Northbound Applications running on SDN Flow Table 1.
+Also Included are the Simple Switch and REST Route Northbound Applications running on SDN Flow Table 1. To run these applications concurrently with the RAN, just add the path to file.
+
 ### Simple Switch
-The Simple Switch Application does not require any configuration.
+The Simple Switch Application does not require any additional configuration.
+
 ```sh
     $ ryu-manager ./ran.py ./tests/mod_simple_switch_13.py
 ```
 
 ### REST Router
-The REST Router Application will require setup configuration. See [Ryu SDN Framework](http://osrg.github.io/ryu/resources.html#books) ebook for example.
+The REST Router Application will require additional setup configurations such as IP and routes. Refer to the [Ryu SDN Framework](http://osrg.github.io/ryu/resources.html#books) ebook for examples.
+
 ```sh
     $ ryu-manager ./ran.py ./tests/mod_rest_router.py
 ```
@@ -159,6 +164,7 @@ The REST Router Application will require setup configuration. See [Ryu SDN Frame
 COMMANDS
 --------
 __Open vSwitch 2.3.0 Commands:__
+
 ```sh
     # Set bridge OpenFlow version
     $ ovs-vsctl set Bridge s1 protocol=OpenFlow13
